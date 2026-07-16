@@ -51,8 +51,9 @@ def get_one_task(shop_date:date, db: Session = Depends(get_db)):
     return repo.find_one_tasks(shop_date)
 
 @task_router.get("/{task_id}/status_betrag", response_model=TaskUpdateState)
-def get_task_status_betrag(task_id: int, service=Depends(get_db)):
-    status = service.find_status_betrag_tasks(task_id)
+def get_task_status_betrag(task_id: int, db: Session = Depends(get_db)):
+    repo = TaskRepository(db)
+    status = repo.find_status_betrag_tasks(task_id)
     if not status:
         raise HTTPException(
             detail=f"Task mit der ID {task_id} wurde nicht gefunden."

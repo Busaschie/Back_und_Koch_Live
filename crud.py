@@ -27,13 +27,12 @@ class TaskRepository():
     def find_open_tasks(self)-> list[Task]:
         return self.session.query(Task).filter(Task.status_betrag == "OPEN").all()
 
-    def find_status_betrag_tasks(self, task_id:int) -> Task | None:
-        query = (
+    def find_status_betrag_tasks(self, task_id: int) -> Task | None:
+        return (
             self.session.query(Task)
             .filter(Task.id == task_id)
-            .order_by(Task.id.desc())
+            .first()
         )
-        return query.first(Task.status_betrag)
 
     def update_status_betrag_tasks(self, task_id:int, new_state:str)->Task | None:
         allowed = {"OPEN","DONE"}
