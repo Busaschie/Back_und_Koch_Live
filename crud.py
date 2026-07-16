@@ -34,6 +34,13 @@ class TaskRepository():
             .first()
         )
 
+    def find_status_buchung_tasks(self, task_id: int) -> Task | None:
+        return (
+            self.session.query(Task)
+            .filter(Task.id == task_id)
+            .first()
+        )
+
     def update_status_betrag_tasks(self, task_id:int, new_state:str)->Task | None:
         allowed = {"OPEN","DONE"}
         if new_state not in allowed:

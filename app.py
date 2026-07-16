@@ -335,55 +335,139 @@ with col_rechts:
         with st.expander("Schritt 3: Einkaufsliste"):
             st.dataframe(df_user_gefiltert, hide_index=True, width="stretch")
 
-        # Schritt 4
+        # Schritt 4: Abbuchung (Überarbeitet)
         with st.expander("Schritt 4: Abbuchung"):
+            aktives_datum = st.session_state.selected_date
             ist_gespeichert = (db_status == "DONE")
-            df_mit_status = df_user_gefiltert.copy()
 
-            if ist_gespeichert:
-                aktuelle_betraege = []
-                for _, row in df_mit_status.iterrows():
-                    buchnummer = row["buchnummer"]
-                    try:
-                        wallet_response = requests.get(f"{BASE_URL}/wallets/last", params={"buchnummer": buchnummer},
-                                                       timeout=5)
-                        if wallet_response.status_code == 200:
-                            aktuelle_betraege.append(str(wallet_response.json().get("new_amount", "0")))
-                        else:
-                            aktuelle_betraege.append("0")
-                    except:
-                        aktuelle_betraege.append("0")
+            df_abbuchung = df_user_gefiltert.copy()
 
-                df_mit_status["betrag"] = aktuelle_betraege
-                disabled_spalten = ["vorname", "nachname", "buchnummer", "betrag"]
-                button_deaktiviert = True
-                button_text = "🔒 Abbuchung abgeschlossen (Status: DONE)"
-            else:
-                df_mit_status["betrag"] = "Bitte wählen..."
-                disabled_spalten = ["vorname", "nachname", "buchnummer"]
-                button_deaktiviert = False
-                button_text = "💾 Beträge abbuchen"
-
-            if ist_gespeichert:
-                spalten_konfiguration = {
-                    "betrag": st.column_config.TextColumn("Betrag", help="Aktuelles Guthaben", width="medium")
-                }
-            else:
-                spalten_konfiguration = {
-                    "betrag": st.column_config.SelectboxColumn(
-                        "Betrag",
-                        help="Betrag des Nutzers",
-                        width="medium",
-                        options=["Bitte wählen...", "0", "7", "13", "15", "25"],
-                        required=True,
+            # 1. Aktuelles Guthaben (schreibgeschützt) für jeden User live abfragen
+            guthaben_liste = []
+            for _, row in df_abbuchung.iterrows():
+                buchnummer = row["buchnummer"]
+                try:
+                    wallet_response = requests.get(
+                        f"{BASE_URL}/wallets/last",
+                        params={"buchnummer": buchnummer},
+                        timeout=5
                     )
-                }
+                    if wallet_response.status_code == 200:
+                        # Wir nehmen das aktuelle Guthaben ('new_amount') als Basis
+                        guthaben_liste.append(float(wallet_response.json().get("new_amount", 0.0)))
+                    else:
+                        guthaben_liste.append(0.0)
+                except:
+                    guthaben_liste.append(0.0)
 
-            df_editiert = st.data_editor(
-                df_mit_status,
-                column_config=spalten_konfiguration,
-                disabled=disabled_spalten,
+            df_abbuchung["aktuelles_guthaben"] = guthaben_liste
+
+            # 2. Eingabespalte für den Abbuchungsbetrag als Float hinzufügen (Standard: 0.0)
+            df_abbuchung["abbuchung"] = 0.0
+
+            # Spaltenkonfiguration:
+            # 'aktuelles_guthaben' wird angezeigt, 'abbuchung' kann editiert werden.
+            spalten_konfiguration_4 = {
+                "aktuelles_guthaben": st.column_config.NumberColumn(
+                    "Aktuelles Guthaben (€)",
+                    help="Das momentane Guthaben des Users in der Wallet",
+                    format="%.2f €",
+                    width="medium"
+                ),
+                "abbuchung": st.column_config.NumberColumn(
+                    "Abzubuchender Betrag (€)",
+                    help="Trage hier den Betrag ein, der abgezogen werden soll",
+                    min_value=0.0,
+                    max_value=1000.0,
+                    step=0.01,
+                    format="%.2f €",
+                    width="medium"
+                )
+            }
+
+            # Nur 'abbuchung' ist editierbar. Name, Vorname, Buchnummer und Guthaben sind gesperrt.
+            disabled_spalten_4 = ["vorname", "nachname", "buchnummer", "aktuelles_guthaben"]
+
+            button_text_4 = "💾 Beträge abbuchen & in Wallet speichern"
+            button_deaktiviert_4 = False
+
+            # Wenn der Vorgang noch komplett OPEN ist, könnte man den Button optional sperren,
+            # falls Schritt 4 erst nach Schritt 2 erlaubt sein soll. Aktuell ist er immer aktiv:
+            if ist_gespeichert:
+                # Optional: Falls nach Status DONE nichts mehr abgebucht werden darf,
+                # kannst du diese Zeilen einkommentieren.
+                # disabled_spalten_4.append("abbuchung")
+                # button_deaktiviert_4 = True
+                # button_text_4 = "🔒 Abbuchung für diesen geschlossenen Vorgang nicht mehr möglich"
+                pass
+
+            # Der Data Editor für Schritt 4
+            df_editiert_4 = st.data_editor(
+                df_abbuchung,
+                column_config=spalten_konfiguration_4,
+                disabled=disabled_spalten_4,
                 hide_index=True,
                 width="stretch",
-                key=f"abbuchung_{aktives_datum}_{db_status}",
+                key=f"abbuchung_editor_{aktives_datum}_{db_status}",
             )
+
+            # Speicher-Button für Schritt 4
+            if st.button(
+                    button_text_4,
+                    type="primary",
+                    disabled=button_deaktiviert_4,
+                    key="save_abbuchung_btn"
+            ):
+                # Wir filtern alle Zeilen heraus, bei denen tatsächlich ein Betrag > 0.0 eingetragen wurde
+                gueltige_abbuchungen = df_editiert_4[
+                    df_editiert_4["abbubuchung" if "abbubuchung" in df_editiert_4.columns else "abbuchung"] > 0.0]
+
+                if gueltige_abbuchungen.empty:
+                    st.warning("Keine Beträge zur Abbuchung eingetragen (Betrag muss größer als 0.00 € sein).")
+                elif aktuelle_task_id is None:
+                    st.error("Keine gültige task_id gefunden.")
+                else:
+                    erfolgreich = 0
+                    fehler = 0
+
+                    for index, row in gueltige_abbuchungen.iterrows():
+                        buchnummer = row["buchnummer"]
+                        abbuchungs_betrag = float(row["abbuchung"])
+                        altes_guthaben = float(row["aktuelles_guthaben"])
+
+                        # Berechnung: Guthaben verringern
+                        neues_guthaben = altes_guthaben - abbuchungs_betrag
+
+                        # Payload vorbereiten.
+                        # Hinweis: Der gebuchte 'betrag' wird als negativer Wert gespeichert,
+                        # da Geld vom Konto abgeht.
+                        wallet_payload = {
+                            "task_id": aktuelle_task_id,
+                            "buchnummer": buchnummer,
+                            "betrag": -abbuchungs_betrag,  # Negativ, da es abgezogen wird
+                            "old_amount": altes_guthaben,
+                            "new_amount": neues_guthaben,
+                            "grund": f"Abbuchung Einkaufsliste vom {date.today()}",
+                            "date": str(date.today()),
+                        }
+
+                        try:
+                            post_response = requests.post(
+                                f"{BASE_URL}/wallets/save",
+                                json=wallet_payload,
+                                timeout=5
+                            )
+                            if post_response.status_code in [200, 201]:
+                                erfolgreich += 1
+                            else:
+                                fehler += 1
+                                st.error(f"Fehler bei Buchnummer {buchnummer}: {post_response.text}")
+                        except Exception as e:
+                            fehler += 1
+                            st.error(f"Verbindungsfehler bei Buchnummer {buchnummer}: {e}")
+
+                    if erfolgreich > 0:
+                        st.success(f"🎉 {erfolgreich} Abbuchung(en) erfolgreich in der Wallet gespeichert!")
+                        st.rerun()
+                    if fehler > 0:
+                        st.error(f"⚠️ {fehler} Abbuchung(en) fehlgeschlagen.")

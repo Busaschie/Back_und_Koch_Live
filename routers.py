@@ -60,6 +60,16 @@ def get_task_status_betrag(task_id: int, db: Session = Depends(get_db)):
         )
     return status
 
+@task_router.get("/{task_id}/status_buchung", response_model=TaskUpdateState)
+def get_task_status_buchung(task_id: int, db: Session = Depends(get_db)):
+    repo = TaskRepository(db)
+    status = repo.find_status_buchung_tasks(task_id)
+    if not status:
+        raise HTTPException(
+            detail=f"Task mit der ID {task_id} wurde nicht gefunden."
+        )
+    return status
+
 @task_router.put("/{task_id}/update_status_betrag", response_model=TaskUpdateState)
 def update_status_betrag_task(task_id: int, new_state: str, db: Session = Depends(get_db)):
     repo = TaskRepository(db)
