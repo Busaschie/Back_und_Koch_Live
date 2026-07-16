@@ -50,6 +50,52 @@ def get_one_task(shop_date:date, db: Session = Depends(get_db)):
     repo = TaskRepository(db)
     return repo.find_one_tasks(shop_date)
 
+
+@task_router.put("/{task_id}/status_betrag", response_model=TaskUpdateState)
+def update_status_betrag_task(task_id: int, new_state: str, db: Session = Depends(get_db)):
+    repo = TaskRepository(db)
+    try:
+        updated_task = repo.update_status_betrag_tasks(task_id, new_state)
+    except ValueError as e:
+        raise HTTPException(
+            detail=str(e)
+        )
+    if not updated_task:
+        raise HTTPException(
+            detail=f"Task mit ID {task_id} wurde nicht gefunden."
+        )
+    return updated_task
+
+@task_router.put("/{task_id}/status_waren", response_model=TaskUpdateState)
+def update_status_waren_task(task_id: int, new_state: str, db: Session = Depends(get_db)):
+    repo = TaskRepository(db)
+    try:
+        updated_task = repo.update_status_waren_tasks(task_id, new_state)
+    except ValueError as e:
+        raise HTTPException(
+            detail=str(e)
+        )
+    if not updated_task:
+        raise HTTPException(
+            detail=f"Task mit ID {task_id} wurde nicht gefunden."
+        )
+    return updated_task
+
+@task_router.put("/{task_id}/status_buchung", response_model=TaskUpdateState)
+def update_status_buchung_task(task_id: int, new_state: str, db: Session = Depends(get_db)):
+    repo = TaskRepository(db)
+    try:
+        updated_task = repo.update_status_buchung_tasks(task_id, new_state)
+    except ValueError as e:
+        raise HTTPException(
+            detail=str(e)
+        )
+    if not updated_task:
+        raise HTTPException(
+            detail=f"Task mit ID {task_id} wurde nicht gefunden."
+        )
+    return updated_task
+
 @task_router.get("/open", response_model = list[TaskRead])
 def get_open_task(db: Session = Depends(get_db)):
     repo = TaskRepository(db)
@@ -93,7 +139,6 @@ def get_wallet_task(task_id:int, db: Session = Depends(get_db)):
 def get_wallet_last_task(buchnummer:str, db: Session = Depends(get_db)):
     repo = WalletRepository(db)
     return repo.find_wallet_last_task_user(buchnummer)
-
 
 @wallet_router.post("/save", response_model = WalletRead) # Pfad
 def create_new_wallet(wallet_create:WalletCreate, db:Session = Depends(get_db)):

@@ -27,6 +27,42 @@ class TaskRepository():
     def find_open_tasks(self)-> list[Task]:
         return self.session.query(Task).filter(Task.status_betrag == "OPEN").all()
 
+    def update_status_betrag_tasks(self, task_id:int, new_state:str)->Task | None:
+        allowed = {"OPEN","DONE"}
+        if new_state not in allowed:
+            raise ValueError(f"Invalid State, allowed: {allowed}")
+        task = self.session.get(Task,task_id)
+        if not task:
+            return None
+        task.status_betrag = new_state
+        self.session.commit()
+        self.session.refresh(task)
+        return task
+
+    def update_status_waren_tasks(self, task_id:int, new_state:str)->Task | None:
+        allowed = {"OPEN","DONE"}
+        if new_state not in allowed:
+            raise ValueError(f"Invalid State, allowed: {allowed}")
+        task = self.session.get(Task,task_id)
+        if not task:
+            return None
+        task.status_waren = new_state
+        self.session.commit()
+        self.session.refresh(task)
+        return task
+
+    def update_status_buchung_tasks(self, task_id: int, new_state: str) -> Task | None:
+        allowed = {"OPEN", "DONE"}
+        if new_state not in allowed:
+            raise ValueError(f"Invalid State, allowed: {allowed}")
+        task = self.session.get(Task, task_id)
+        if not task:
+            return None
+        task.status_buchung = new_state
+        self.session.commit()
+        self.session.refresh(task)
+        return task
+
     def find_one_tasks(self, shop_date:date) -> list[Task]:
         #statement = select(Task).where(Task.shop_date == shop_date)
         #result = self.session.execute(statement)

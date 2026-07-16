@@ -27,15 +27,7 @@ class WalletCreate(WalletBase):
 #-----------------------------------------------
 # Task
 #-----------------------------------------------
-class TaskStatusBetrag(str,Enum):
-    OPEN = "OPEN"
-    DONE = "DONE"
-
-class TaskStatusWaren(str,Enum):
-    OPEN = "OPEN"
-    DONE = "DONE"
-
-class TaskStatusBuchung(str, Enum):
+class TaskStatus(str,Enum):
     OPEN = "OPEN"
     DONE = "DONE"
 
@@ -46,13 +38,17 @@ class TaskBase(BaseModel):
     shop_date:date
     abgabe_date:date
     geld_date:date
-    #TaskStatus = TaskStatus.OPEN
 
 class TaskRead(TaskBase):
     id:int
 
 class TaskCreate(TaskBase):
     pass
+
+class TaskUpdateState(TaskRead):
+    status_betrag: TaskStatus = TaskStatus.OPEN
+    status_waren: TaskStatus = TaskStatus.OPEN
+    status_buchung: TaskStatus = TaskStatus.OPEN
 
 #-----------------------------------------------
 # User
