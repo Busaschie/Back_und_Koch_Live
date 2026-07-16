@@ -1,7 +1,7 @@
 from database import Base
-from sqlalchemy import Column, Integer, String, ForeignKey, Text, Date, Enum, DateTime, func
-from datetime import datetime
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, ForeignKey, Text, Date, Enum, func
+#from datetime import datetime
+#from sqlalchemy.orm import relationship
 
 class BaseRepr:
     """ generischhe __repr__Methode
@@ -41,6 +41,7 @@ class User(Base,BaseRepr):
     nachname = Column(String(40), nullable=False, unique=True)
     zimmer_nr = Column(Integer)
     buchnummer = Column(String(10))
+
 #
 class Task(Base,BaseRepr):
     __tablename__ = "task"
@@ -54,8 +55,9 @@ class Task(Base,BaseRepr):
     status_betrag = Column(Enum("OPEN", "DONE"), nullable=False, default="OPEN")
     status_waren = Column(Enum("OPEN", "DONE"), nullable=False, default="OPEN")
     status_buchung = Column(Enum("OPEN", "DONE"), nullable=False, default="OPEN")
+
 #
-class Artikel(Base, BaseRepr):
+class Waren(Base, BaseRepr):
     __tablename__ = "waren"
     id = Column(Integer, primary_key=True)
     bezeichnung = Column(String(250))
@@ -64,3 +66,10 @@ class Artikel(Base, BaseRepr):
     art = Column(String(20))
     preis = Column(Integer)
 
+class Bestellung(Base, BaseRepr):
+    __tablename__ = "bestellung"
+    id = Column(Integer, primary_key=True)
+    bezeichnung = Column(String(250))
+    menge = Column(Integer)
+    preis = Column(Integer)
+    task_id = Column(Integer)

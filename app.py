@@ -8,60 +8,70 @@ BASE_URL = "http://localhost:8000"
 # Seite auf weites Layout stellen
 st.set_page_config(layout="wide")
 
+# ==========================================
+# 0. SESSION STATE INITIALISIERUNG (GLOBAL)
+# ==========================================
 if "create_mode" not in st.session_state:
     st.session_state.create_mode = False
 
-# ==========================================
-# API-Abfragen
-# ==========================================
-@st.cache_data
-def get_api_data_user():
-    try:
-        response = requests.get(f"{BASE_URL}/users")
-        df = pd.DataFrame(response.json())
-        return df[["vorname", "nachname", "buchnummer"]].copy()
-    except Exception as e:
-        st.error(f"Fehler beim Laden der API (User): {e}")
-        return pd.DataFrame(columns=["vorname", "nachname", "buchnummer"])
+# Globaler Cache im Session State, um API-Abfragen beim Tippen komplett zu blockieren
+if "global_users" not in st.session_state:
+    st.session_state.global_users = None
 
-df_user_gefiltert = get_api_data_user()
+if "global_tasks" not in st.session_state:
+    st.session_state.global_tasks = None
 
-@st.cache_data
-def get_api_data_task():
-    try:
-        response = requests.get(f"{BASE_URL}/tasks")
-        df = pd.DataFrame(response.json())
-        return df[["shop_date"]].copy()
-    except Exception as e:
-        st.error(f"Fehler beim Laden der API (Tasks): {e}")
-        return pd.DataFrame(columns=["shop_date"])
 
-df_task_gefiltert = get_api_data_task()
+# --- Einmalige API-Ladefunktionen ---
+def load_users_once():
+    if st.session_state.global_users is None:
+        try:
+            response = requests.get(f"{BASE_URL}/users", timeout=5)
+            df = pd.DataFrame(response.json())
+            st.session_state.global_users = df[["vorname", "nachname", "buchnummer"]].copy()
+        except Exception as e:
+            st.error(f"Fehler beim Laden der User-Daten: {e}")
+            st.session_state.global_users = pd.DataFrame(columns=["vorname", "nachname", "buchnummer"])
+    return st.session_state.global_users
 
-# ==========================================
-# 0. Session State Initialisierung (Optimiert für 0 API-Calls bei Eingabe)
-# ==========================================
-# 1. Standard-Datum festlegen
+
+def load_tasks_once():
+    if st.session_state.global_tasks is None:
+        try:
+            response = requests.get(f"{BASE_URL}/tasks", timeout=5)
+            df = pd.DataFrame(response.json())
+            st.session_state.global_tasks = df[["shop_date"]].copy()
+        except Exception as e:
+            st.error(f"Fehler beim Laden der Task-Daten: {e}")
+            st.session_state.global_tasks = pd.DataFrame(columns=["shop_date"])
+    return st.session_state.global_tasks
+
+
+# Daten einmalig laden (Diese Variablen nutzen wir im restlichen Code)
+df_user_gefiltert = load_users_once()
+df_task_gefiltert = load_tasks_once()
+
+# --- Selected Date & Task Details im Session State verwalten ---
 if "selected_date" not in st.session_state:
     if not df_task_gefiltert.empty:
         st.session_state.selected_date = str(df_task_gefiltert.iloc[0]["shop_date"])
     else:
         st.session_state.selected_date = str(date.today())
 
-# Weiche, um zu prüfen, ob wir für das aktuelle Datum die Daten neu laden müssen
 if "current_task_data" not in st.session_state:
     st.session_state.current_task_data = None
 if "current_task_id" not in st.session_state:
     st.session_state.current_task_id = None
 if "current_db_status" not in st.session_state:
     st.session_state.current_db_status = "OPEN"
+if "current_db_status_buchung" not in st.session_state:
+    st.session_state.current_db_status_buchung = "OPEN"
 
 
-# Hilfsfunktionen für den API-Abruf (werden jetzt nur noch kontrolliert aufgerufen!)
 def fetch_api_one_task(shop_date: str):
     try:
         params = {"shop_date": shop_date}
-        response = requests.get(f"{BASE_URL}/tasks/one_task", params=params)
+        response = requests.get(f"{BASE_URL}/tasks/one_task", params=params, timeout=5)
         if response.status_code != 200:
             return None
         data = response.json()
@@ -74,40 +84,45 @@ def fetch_api_one_task(shop_date: str):
         return None
 
 
-def fetch_task_status(task_id: int) -> str:
+def fetch_task_statuses(task_id: int):
     try:
         response = requests.get(f"{BASE_URL}/tasks/{task_id}/status_betrag", timeout=5)
         if response.status_code == 200:
             data = response.json()
             if isinstance(data, dict):
-                status_val = data.get("status_betrag") or data.get("status") or "OPEN"
-                return str(status_val).upper()
+                status_betrag = data.get("status_betrag") or "OPEN"
+                status_buchung = data.get("status_buchung") or "OPEN"
+                return str(status_betrag).upper(), str(status_buchung).upper()
     except Exception as e:
         st.warning(f"Status-Abfrage fehlgeschlagen: {e}")
-    return "OPEN"
+    return "OPEN", "OPEN"
 
 
-# FUNKTION: Lädt die Task-Daten einmalig in den Session State
 def load_task_into_state(shop_date: str):
     df_task = fetch_api_one_task(shop_date)
     if df_task is not None and not df_task.empty:
         st.session_state.current_task_data = df_task
         st.session_state.current_task_id = int(df_task.iloc[0]["id"])
-        st.session_state.current_db_status = fetch_task_status(st.session_state.current_task_id)
+
+        s_betrag, s_buchung = fetch_task_statuses(st.session_state.current_task_id)
+        st.session_state.current_db_status = s_betrag
+        st.session_state.current_db_status_buchung = s_buchung
     else:
         st.session_state.current_task_data = pd.DataFrame()
         st.session_state.current_task_id = None
         st.session_state.current_db_status = "OPEN"
+        st.session_state.current_db_status_buchung = "OPEN"
 
 
 # Erstmaliges Laden beim App-Start sicherstellen
 if st.session_state.current_task_data is None:
     load_task_into_state(st.session_state.selected_date)
 
-# Shortcuts für den restlichen Code definieren
+# Shortcuts für den restlichen UI-Code definieren
 df_one_task_gefiltert = st.session_state.current_task_data
 aktuelle_task_id = st.session_state.current_task_id
 db_status = st.session_state.current_db_status
+db_status_buchung = st.session_state.current_db_status_buchung
 
 # ==========================================
 # 1. NAVIGATION
@@ -335,95 +350,99 @@ with col_rechts:
         with st.expander("Schritt 3: Einkaufsliste"):
             st.dataframe(df_user_gefiltert, hide_index=True, width="stretch")
 
-        # Schritt 4: Abbuchung (Überarbeitet)
+        # Schritt 4: Abbuchung (Mit st.form -> Absolut KEIN Laden bei der Eingabe!)
         with st.expander("Schritt 4: Abbuchung"):
             aktives_datum = st.session_state.selected_date
-            ist_gespeichert = (db_status == "DONE")
+            ist_buchung_gespeichert = (str(db_status_buchung).strip().upper() == "DONE")
 
             df_abbuchung = df_user_gefiltert.copy()
 
-            # 1. Aktuelles Guthaben (schreibgeschützt) für jeden User live abfragen
-            guthaben_liste = []
-            for _, row in df_abbuchung.iterrows():
-                buchnummer = row["buchnummer"]
-                try:
-                    wallet_response = requests.get(
-                        f"{BASE_URL}/wallets/last",
-                        params={"buchnummer": buchnummer},
-                        timeout=5
-                    )
-                    if wallet_response.status_code == 200:
-                        # Wir nehmen das aktuelle Guthaben ('new_amount') als Basis
-                        guthaben_liste.append(float(wallet_response.json().get("new_amount", 0.0)))
-                    else:
-                        guthaben_liste.append(0.0)
-                except:
-                    guthaben_liste.append(0.0)
+            # Wir packen alles in ein Formular.
+            # Dadurch blockiert Streamlit JEGLICHEN automatischen Rerun beim Tippen!
+            with st.form("abbuchung_form"):
 
-            df_abbuchung["aktuelles_guthaben"] = guthaben_liste
+                if ist_buchung_gespeichert:
+                    # NUR bei DONE holen wir einmalig die archivierten Beträge
+                    if f"archiv_abbuchungen_{aktives_datum}" not in st.session_state:
+                        archivierte_abbuchungen = []
+                        for _, row in df_abbuchung.iterrows():
+                            buchnummer = row["buchnummer"]
+                            try:
+                                wallet_response = requests.get(
+                                    f"{BASE_URL}/wallets/last",
+                                    params={"buchnummer": buchnummer},
+                                    timeout=2
+                                )
+                                if wallet_response.status_code == 200:
+                                    gebuchter_wert = abs(float(wallet_response.json().get("betrag", 0.0)))
+                                    archivierte_abbuchungen.append(gebuchter_wert)
+                                else:
+                                    archivierte_abbuchungen.append(0.0)
+                            except:
+                                archivierte_abbuchungen.append(0.0)
+                        st.session_state[f"archiv_abbuchungen_{aktives_datum}"] = archivierte_abbuchungen
 
-            # 2. Eingabespalte für den Abbuchungsbetrag als Float hinzufügen (Standard: 0.0)
-            df_abbuchung["abbuchung"] = 0.0
+                    df_abbuchung["aktuelles_guthaben"] = 0.0
+                    df_abbuchung["abbuchung"] = st.session_state[f"archiv_abbuchungen_{aktives_datum}"]
 
-            # Spaltenkonfiguration:
-            # 'aktuelles_guthaben' wird angezeigt, 'abbuchung' kann editiert werden.
-            spalten_konfiguration_4 = {
-                "aktuelles_guthaben": st.column_config.NumberColumn(
-                    "Aktuelles Guthaben (€)",
-                    help="Das momentane Guthaben des Users in der Wallet",
-                    format="%.2f €",
-                    width="medium"
-                ),
-                "abbuchung": st.column_config.NumberColumn(
-                    "Abzubuchender Betrag (€)",
-                    help="Trage hier den Betrag ein, der abgezogen werden soll",
-                    min_value=0.0,
-                    max_value=1000.0,
-                    step=0.01,
-                    format="%.2f €",
-                    width="medium"
+                    disabled_spalten_4 = ["vorname", "nachname", "buchnummer", "aktuelles_guthaben", "abbuchung"]
+                    button_deaktiviert_4 = True
+                    button_text_4 = "🔒 Abbuchung abgeschlossen (Status: DONE)"
+                else:
+                    # WENN OPEN: Keine APIs, keine Verzögerung
+                    df_abbuchung["aktuelles_guthaben"] = 0.0
+                    df_abbuchung["abbuchung"] = 0.0
+
+                    disabled_spalten_4 = ["vorname", "nachname", "buchnummer", "aktuelles_guthaben"]
+                    button_deaktiviert_4 = False
+                    button_text_4 = "💾 Beträge abbuchen & in Wallet speichern"
+
+                # Spaltenkonfiguration
+                if ist_buchung_gespeichert:
+                    spalten_konfiguration_4 = {
+                        "aktuelles_guthaben": None,
+                        "abbuchung": st.column_config.NumberColumn(
+                            "Abgebuchter Betrag (€)",
+                            format="%.2f €",
+                            width="medium"
+                        )
+                    }
+                else:
+                    spalten_konfiguration_4 = {
+                        "aktuelles_guthaben": None,
+                        "abbuchung": st.column_config.NumberColumn(
+                            "Abzubuchender Betrag (€)",
+                            min_value=0.0,
+                            max_value=1000.0,
+                            step=0.01,
+                            format="%.2f €",
+                            width="medium"
+                        )
+                    }
+
+                # Der Data Editor innerhalb des Formulars
+                df_editiert_4 = st.data_editor(
+                    df_abbuchung,
+                    column_config=spalten_konfiguration_4,
+                    disabled=disabled_spalten_4,
+                    hide_index=True,
+                    width="stretch",
+                    key=f"abb_ed_{aktives_datum}_{db_status_buchung}",
                 )
-            }
 
-            # Nur 'abbuchung' ist editierbar. Name, Vorname, Buchnummer und Guthaben sind gesperrt.
-            disabled_spalten_4 = ["vorname", "nachname", "buchnummer", "aktuelles_guthaben"]
-
-            button_text_4 = "💾 Beträge abbuchen & in Wallet speichern"
-            button_deaktiviert_4 = False
-
-            # Wenn der Vorgang noch komplett OPEN ist, könnte man den Button optional sperren,
-            # falls Schritt 4 erst nach Schritt 2 erlaubt sein soll. Aktuell ist er immer aktiv:
-            if ist_gespeichert:
-                # Optional: Falls nach Status DONE nichts mehr abgebucht werden darf,
-                # kannst du diese Zeilen einkommentieren.
-                # disabled_spalten_4.append("abbuchung")
-                # button_deaktiviert_4 = True
-                # button_text_4 = "🔒 Abbuchung für diesen geschlossenen Vorgang nicht mehr möglich"
-                pass
-
-            # Der Data Editor für Schritt 4
-            df_editiert_4 = st.data_editor(
-                df_abbuchung,
-                column_config=spalten_konfiguration_4,
-                disabled=disabled_spalten_4,
-                hide_index=True,
-                width="stretch",
-                key=f"abbuchung_editor_{aktives_datum}_{db_status}",
-            )
-
-            # Speicher-Button für Schritt 4
-            if st.button(
+                # Der Absendeknopf des Formulars (st.form_submit_button)
+                submitted_4 = st.form_submit_button(
                     button_text_4,
                     type="primary",
-                    disabled=button_deaktiviert_4,
-                    key="save_abbuchung_btn"
-            ):
-                # Wir filtern alle Zeilen heraus, bei denen tatsächlich ein Betrag > 0.0 eingetragen wurde
-                gueltige_abbuchungen = df_editiert_4[
-                    df_editiert_4["abbubuchung" if "abbubuchung" in df_editiert_4.columns else "abbuchung"] > 0.0]
+                    disabled=button_deaktiviert_4
+                )
+
+            # Verarbeitung nach dem Klick auf "Speichern" (außerhalb des Formulars)
+            if submitted_4:
+                gueltige_abbuchungen = df_editiert_4[df_editiert_4["abbuchung"] > 0.0]
 
                 if gueltige_abbuchungen.empty:
-                    st.warning("Keine Beträge zur Abbuchung eingetragen (Betrag muss größer als 0.00 € sein).")
+                    st.warning("Keine Beträge zur Abbuchung eingetragen.")
                 elif aktuelle_task_id is None:
                     st.error("Keine gültige task_id gefunden.")
                 else:
@@ -433,18 +452,25 @@ with col_rechts:
                     for index, row in gueltige_abbuchungen.iterrows():
                         buchnummer = row["buchnummer"]
                         abbuchungs_betrag = float(row["abbuchung"])
-                        altes_guthaben = float(row["aktuelles_guthaben"])
 
-                        # Berechnung: Guthaben verringern
+                        altes_guthaben = 0.0
+                        try:
+                            wallet_response = requests.get(
+                                f"{BASE_URL}/wallets/last",
+                                params={"buchnummer": buchnummer},
+                                timeout=5
+                            )
+                            if wallet_response.status_code == 200:
+                                altes_guthaben = float(wallet_response.json().get("new_amount", 0.0))
+                        except:
+                            altes_guthaben = 0.0
+
                         neues_guthaben = altes_guthaben - abbuchungs_betrag
 
-                        # Payload vorbereiten.
-                        # Hinweis: Der gebuchte 'betrag' wird als negativer Wert gespeichert,
-                        # da Geld vom Konto abgeht.
                         wallet_payload = {
                             "task_id": aktuelle_task_id,
                             "buchnummer": buchnummer,
-                            "betrag": -abbuchungs_betrag,  # Negativ, da es abgezogen wird
+                            "betrag": -abbuchungs_betrag,
                             "old_amount": altes_guthaben,
                             "new_amount": neues_guthaben,
                             "grund": f"Abbuchung Einkaufsliste vom {date.today()}",
@@ -461,13 +487,27 @@ with col_rechts:
                                 erfolgreich += 1
                             else:
                                 fehler += 1
-                                st.error(f"Fehler bei Buchnummer {buchnummer}: {post_response.text}")
-                        except Exception as e:
+                        except:
                             fehler += 1
-                            st.error(f"Verbindungsfehler bei Buchnummer {buchnummer}: {e}")
 
                     if erfolgreich > 0:
-                        st.success(f"🎉 {erfolgreich} Abbuchung(en) erfolgreich in der Wallet gespeichert!")
+                        try:
+                            status_url = f"{BASE_URL}/tasks/{aktuelle_task_id}/update_status_buchung"
+                            status_response = requests.put(
+                                status_url,
+                                params={"new_state": "DONE"},
+                                timeout=5
+                            )
+                            if status_response.status_code in [200, 201]:
+                                st.success("🎉 Abbuchungen erfolgreich gespeichert!")
+                                st.session_state.current_db_status_buchung = "DONE"
+                                if f"archiv_abbuchungen_{aktives_datum}" in st.session_state:
+                                    del st.session_state[f"archiv_abbuchungen_{aktives_datum}"]
+                            else:
+                                st.warning(f"Status-Update fehlgeschlagen: {status_response.text}")
+                        except Exception as e:
+                            st.warning(f"Fehler beim Status-Update: {e}")
+
                         st.rerun()
                     if fehler > 0:
                         st.error(f"⚠️ {fehler} Abbuchung(en) fehlgeschlagen.")

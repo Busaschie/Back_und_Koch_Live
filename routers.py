@@ -1,16 +1,17 @@
 # RestService
-from models import User, Task, Wallet, Admin
+from models import User, Task, Wallet, Bestellung
 from database import get_db
 from schema import *
-from crud import UserRepository, TaskRepository, WalletRepository
-from fastapi import FastAPI, Depends, APIRouter, HTTPException
+from crud import UserRepository, TaskRepository, WalletRepository, WarenRepository, BestellungRepository
+from fastapi import FastAPI, Depends, APIRouter, HTTPException, status
 from sqlalchemy.orm import Session
 
-import datetime
 
 user_router = APIRouter(prefix="/users")
 wallet_router = APIRouter(prefix="/wallets")
 task_router = APIRouter(prefix="/tasks")
+waren_router = APIRouter(prefix="/waren", tags=["Waren"])
+bestellung_router = APIRouter(prefix="/bestellung")
 
 #-------------
 # User
@@ -35,8 +36,8 @@ def authenticate_user(user_login:UserLogin, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code = 401, detail = "Invalid credentials")
     return user
-
 '''
+
 #-------------
 # Task
 #-------------
@@ -128,14 +129,6 @@ def create_new_task(task_create:TaskCreate, db:Session = Depends(get_db)):
     #new_task = Task(date = task_create.date, monat = task_create.monat, jahr = task_create.jahr, shop_date = task_create.shop_date, abgabe_date = task_create.abgabe_date, geld_date = task_create.geld_date, status = TaskStatus.OPEN)
     return repo.create_task(new_task)
 
-'''
-
-@task_router.get("/{user_id}/todos2", response_model = list[TodoRead])
-def get_all_open_todo_by_userid(user_id:int, db:Session = Depends(get_db)):
-    repo = TodoRepository(db)
-    return repo.find_open_todos_by_user(user_id)
-'''
-
 #-------------
 # Wallet
 #-------------
@@ -165,3 +158,62 @@ def create_new_wallet(wallet_create:WalletCreate, db:Session = Depends(get_db)):
     new_wallet = Wallet(**wallet_create.model_dump()) # konverieren TaskCreate to Task (DB) / model_dump() -> dict
     return repo.create_wallet(new_wallet)
 
+# -------------
+# Waren
+# -------------
+@waren_router.get("/", response_model=list[WarenRead])
+def get_all_waren(db: Session = Depends(get_db)):
+    repo = WarenRepository(db)
+    return repo.find_all_waren()
+
+@waren_router.get("/waren_task", response_model=list[WarenRead])
+def get_waren_task(task_id: int, db: Session = Depends(get_db)):
+    repo = WarenRepository(db)
+    return repo.find_waren_by_task(task_id)
+
+@waren_router.post("/save", response_model=WarenRead)
+def create_new_waren(waren_create: WarenCreate, db: Session = Depends(get_db)):
+    repo = WarenRepository(db)
+    # Wir übergeben das Pydantic-Schema direkt an das Repository
+    return repo.create_waren(waren_create)
+
+@waren_router.put("/{waren_id}/update_waren", response_model=WarenRead)
+def update_waren(
+        waren_id: int,
+        waren_data: WarenUpdate,
+        db: Session = Depends(get_db)
+):
+    repo = TaskRepository(db)
+    try:
+        updated_waren = repo.update_waren(waren_id, waren_data)
+    except Exception as e:
+        # Fängt unerwartete DB-Fehler oder Validierungsfehler ab
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Fehler beim Aktualisieren: {str(e)}"
+        )
+    if not updated_waren:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Artikel mit ID {waren_id} wurde nicht gefunden."
+        )
+    return updated_waren
+
+# -------------
+# Bestellung
+# -------------
+@bestellung_router.get("/", response_model=list[BestellungRead])
+def get_all_bestellung(db: Session = Depends(get_db)):
+    repo = BestellungRead(db)
+    return repo.find_all_bestellung()
+
+@bestellung_router.get("/bestellung_task", response_model=list[BestellungRead])
+def get_bestellung_task(bestellung_id: int, db: Session = Depends(get_db)):
+    repo = BestellungRead(db)
+    return repo.find_bestellung_by_task(bestellung_id)
+
+@bestellung_router.post("/save", response_model=BestellungRead)  # Pfad
+def create_new_bestellung(bestellung_create: BestellungCreate, db: Session = Depends(get_db)):
+    repo = BestellungRead(db)
+    new_bestellung = Bestellung(**bestellung_create.model_dump())
+    return repo.create_bestellung(new_bestellung)

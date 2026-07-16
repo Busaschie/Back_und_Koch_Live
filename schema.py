@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 #from sqlalchemy import Date, Text
 from enum import Enum
 from datetime import date
-
+from typing import Optional
 
 #-----------------------------------------------
 # Wallet
@@ -66,5 +66,47 @@ class UserRead(UserBase):
 class UserCreate(UserBase):
     pass
 
+#-----------------------------------------------
+# Waren
+#-----------------------------------------------
+# Schema für die eingehenden Update-Daten
+class WarenCreate(BaseModel):
+    bezeichnung: Optional[str] = None
+    kategorie: Optional[str] = None
+    menge: int
+    art: Optional[str] = None
+    preis: float
 
+class WarenUpdate(BaseModel):
+    bezeichnung: Optional[str] = None
+    kategorie: Optional[str] = None
+    menge: int
+    art: Optional[str] = None
+    preis: float
 
+# Schema für die Antwort (Response)
+class WarenRead(BaseModel):
+    id: int
+    bezeichnung: Optional[str]
+    kategorie: Optional[str]
+    menge: int
+    art: Optional[str]
+    preis: float
+
+    class Config:
+        from_attributes = True
+
+#-----------------------------------------------
+# Bestellung
+#-----------------------------------------------
+class BestellungBase(BaseModel):
+    bezeichnung:str | None = None
+    menge:int
+    preis:float
+    task_id:int
+
+class BestellungRead(BestellungBase):
+    id:int
+
+class BestellungCreate(BestellungBase):
+    pass

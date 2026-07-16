@@ -1,6 +1,6 @@
-from models import User, Admin, Wallet, Task
+from models import User, Admin, Wallet, Task, Waren, Bestellung
 from sqlalchemy.orm import Session
-from sqlalchemy import text, select
+from schema import WarenUpdate
 from datetime import date
 #from util import hash_password, verify_password
 
@@ -144,12 +144,6 @@ class WalletRepository():
     def __init__(self, session:Session):
         self.session=session
 
-    # def save(self, todo:Todo) -> Todo:
-    #     self.session.add(todo)
-    #     self.session.commit()
-    #     self.session.refresh(todo) 
-    #     return todo
-
     def create_wallet(self, id:Wallet) -> Wallet:
         #existing = self.session.query(User).filter(User.buchnummer == user.buchnummer).first()
         #if existing:
@@ -229,4 +223,59 @@ class WalletRepository():
         self.session.commit()
         return  count
 '''
+
+# ----------------------
+# Waren
+# ----------------------
+class WarenRepository():
+    def __init__(self, session:Session):
+        self.session=session
+
+    def create_waren(self, waren_data: WarenCreate) -> Waren:
+        # 1. SQLAlchemy-Objekt aus den Pydantic-Daten erstellen
+        db_waren = Waren(**waren_data.model_dump())
+        # 2. In die Datenbank einfügen
+        self.session.add(db_waren)
+        self.session.commit()
+        self.session.refresh(db_waren)
+        return db_waren
+
+    def find_all_waren(self)->list[Waren]:
+        return self.session.query(Waren).all()
+
+    def update_waren(self, waren_id: int, waren_data: WarenUpdate) -> Waren | None:
+        # 1. Artikel aus der DB laden (jetzt mit self.session statt self.db)
+        db_waren = self.session.query(Waren).filter(Waren.id == waren_id).first()
+        if not db_waren:
+            return None
+        # 2. Werte dynamisch übertragen
+        update_dict = waren_data.model_dump(exclude_unset=True)
+        for key, value in update_dict.items():
+            setattr(db_waren, key, value)
+        # 3. Speichern und aktualisieren
+        self.session.commit()
+        self.session.refresh(db_waren)
+        return db_waren
+
+# ----------------------
+# Bestellung
+# ----------------------
+class BestellungRepository():
+    def __init__(self, session:Session):
+        self.session=session
+
+    def create_bestellung(self, id:Bestellung) -> Bestellung:
+        #existing = self.session.query(User).filter(User.buchnummer == user.buchnummer).first()
+        #if existing:
+        #    raise ValueError("User existiert bereits!")
+        self.session.add(id)
+        self.session.commit()
+        self.session.refresh(id)
+        return id
+
+    def find_all_bestellung(self)->list[Bestellung]:
+        return self.session.query(Bestellung).all()
+
+    def find_bestellung_by_task(self,task_id:int)->list[Bestellung]:
+        return self.session.query(Bestellung).filter(Bestellung.task_id==task_id).all()
 
