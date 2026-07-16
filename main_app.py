@@ -2,8 +2,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
-
 def main():
     root = Path(__file__).resolve().parent
     app_file = root / "app.py"  # weil app.py im gleichen Ordner wie main.py liegt
@@ -18,7 +16,6 @@ def main():
         [sys.executable, "-m", "streamlit", "run", str(app_file)],
         check=True
     )
-
 
 if __name__ == "__main__":
     main()

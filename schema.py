@@ -10,9 +10,9 @@ from datetime import date
 class WalletBase(BaseModel):
     date:date
     grund:str | None = None
-    old_amount:int
-    new_amount:int
-    betrag:int
+    old_amount:float
+    new_amount:float
+    betrag:float
     #user_id:UserRead.id
     #task_id:TaskRead.id
     buchnummer:str
@@ -27,7 +27,15 @@ class WalletCreate(WalletBase):
 #-----------------------------------------------
 # Task
 #-----------------------------------------------
-class TaskStatus(str,Enum):
+class TaskStatusBetrag(str,Enum):
+    OPEN = "OPEN"
+    DONE = "DONE"
+
+class TaskStatusWaren(str,Enum):
+    OPEN = "OPEN"
+    DONE = "DONE"
+
+class TaskStatusBuchung(str, Enum):
     OPEN = "OPEN"
     DONE = "DONE"
 

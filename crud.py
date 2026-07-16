@@ -25,7 +25,7 @@ class TaskRepository():
         return self.session.query(Task).order_by(Task.id.desc()).all()
 
     def find_open_tasks(self)-> list[Task]:
-        return self.session.query(Task).filter(Task.status == "OPEN").all()
+        return self.session.query(Task).filter(Task.status_betrag == "OPEN").all()
 
     def find_one_tasks(self, shop_date:date) -> list[Task]:
         #statement = select(Task).where(Task.shop_date == shop_date)

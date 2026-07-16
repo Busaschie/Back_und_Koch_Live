@@ -3,8 +3,8 @@ from sqlalchemy.orm import sessionmaker, declarative_base, Session
 from typing import Generator
 
 
-DATABASE_URL =  "mysql+pymysql://root:@localhost:3306/back_koch"
-#DATABASE_URL =  "sqlite:///bundk.db"
+#DATABASE_URL =  "mysql+pymysql://root:@localhost:3306/backkoch"
+DATABASE_URL =  "sqlite:///bundk.db"
 
 engine = create_engine(DATABASE_URL, echo=True)
 

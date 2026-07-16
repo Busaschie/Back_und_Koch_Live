@@ -15,7 +15,7 @@ class BaseRepr:
         )
         return f"<{self.__class__.__name__}({fields})>"
 #
-class Wallet(Base, BaseRepr):
+class Wallet(Base,BaseRepr):
      __tablename__="wallet"
      id = Column(Integer,primary_key=True)
      date = Column(Date)
@@ -25,6 +25,7 @@ class Wallet(Base, BaseRepr):
      task_id = Column(Integer)
      betrag = Column(Integer)
      buchnummer = Column(String(10))
+
 #
 class Admin(Base,BaseRepr):
     __tablename__="admin"
@@ -50,7 +51,9 @@ class Task(Base,BaseRepr):
     shop_date = Column(Date)
     abgabe_date = Column(Date)
     geld_date = Column(Date)
-    status = Column(Enum("OPEN", "DONE"), nullable=False, default="OPEN")
+    status_betrag = Column(Enum("OPEN", "DONE"), nullable=False, default="OPEN")
+    status_waren = Column(Enum("OPEN", "DONE"), nullable=False, default="OPEN")
+    status_buchung = Column(Enum("OPEN", "DONE"), nullable=False, default="OPEN")
 #
 class Artikel(Base, BaseRepr):
     __tablename__ = "waren"
