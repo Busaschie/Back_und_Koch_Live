@@ -39,32 +39,42 @@ def get_api_data_task():
 df_task_gefiltert = get_api_data_task()
 
 # ==========================================
-# 0. Session State Initialisierung (BEHEBT PUNKT 1 & 2)
+# 0. Session State Initialisierung (Optimiert für 0 API-Calls bei Eingabe)
 # ==========================================
-# Wenn noch kein Datum gewählt ist ODER das Standarddatum nicht in der Liste existiert,
-# wählen wir automatisch das allererste Datum aus der Einkaufsliste links.
+# 1. Standard-Datum festlegen
 if "selected_date" not in st.session_state:
     if not df_task_gefiltert.empty:
         st.session_state.selected_date = str(df_task_gefiltert.iloc[0]["shop_date"])
     else:
         st.session_state.selected_date = str(date.today())
 
-def get_api_one_task(shop_date: str):
+# Weiche, um zu prüfen, ob wir für das aktuelle Datum die Daten neu laden müssen
+if "current_task_data" not in st.session_state:
+    st.session_state.current_task_data = None
+if "current_task_id" not in st.session_state:
+    st.session_state.current_task_id = None
+if "current_db_status" not in st.session_state:
+    st.session_state.current_db_status = "OPEN"
+
+
+# Hilfsfunktionen für den API-Abruf (werden jetzt nur noch kontrolliert aufgerufen!)
+def fetch_api_one_task(shop_date: str):
     try:
         params = {"shop_date": shop_date}
         response = requests.get(f"{BASE_URL}/tasks/one_task", params=params)
         if response.status_code != 200:
-            return pd.DataFrame(columns=["id", "monat", "jahr", "shop_date", "abgabe_date", "geld_date"])
+            return None
         data = response.json()
-        df = pd.DataFrame(data) if isinstance(data, list) else pd.DataFrame([data]) if isinstance(data, dict) else pd.DataFrame()
+        df = pd.DataFrame(data) if isinstance(data, list) else pd.DataFrame([data]) if isinstance(data,
+                                                                                                  dict) else pd.DataFrame()
         erwartete_spalten = ["id", "monat", "jahr", "shop_date", "abgabe_date", "geld_date"]
         return df[[col for col in erwartete_spalten if col in df.columns]].copy()
     except Exception as e:
         st.error(f"Fehler beim Laden der Detail-API: {e}")
-        return pd.DataFrame(columns=["id", "monat", "jahr", "shop_date", "abgabe_date", "geld_date"])
+        return None
 
-# Hilfsfunktion für den status_betrag
-def get_task_status(task_id: int) -> str:
+
+def fetch_task_status(task_id: int) -> str:
     try:
         response = requests.get(f"{BASE_URL}/tasks/{task_id}/status_betrag", timeout=5)
         if response.status_code == 200:
@@ -76,18 +86,28 @@ def get_task_status(task_id: int) -> str:
         st.warning(f"Status-Abfrage fehlgeschlagen: {e}")
     return "OPEN"
 
-# Daten für den aktuell ausgewählten Task laden
-df_one_task_gefiltert = get_api_one_task(shop_date=st.session_state.selected_date)
 
-aktuelle_task_id = None
-db_status = "OPEN"
+# FUNKTION: Lädt die Task-Daten einmalig in den Session State
+def load_task_into_state(shop_date: str):
+    df_task = fetch_api_one_task(shop_date)
+    if df_task is not None and not df_task.empty:
+        st.session_state.current_task_data = df_task
+        st.session_state.current_task_id = int(df_task.iloc[0]["id"])
+        st.session_state.current_db_status = fetch_task_status(st.session_state.current_task_id)
+    else:
+        st.session_state.current_task_data = pd.DataFrame()
+        st.session_state.current_task_id = None
+        st.session_state.current_db_status = "OPEN"
 
-if not df_one_task_gefiltert.empty:
-    try:
-        aktuelle_task_id = int(df_one_task_gefiltert.iloc[0]["id"])
-        db_status = get_task_status(aktuelle_task_id)
-    except Exception as e:
-        st.error(f"Fehler beim Ermitteln des DB-Status: {e}")
+
+# Erstmaliges Laden beim App-Start sicherstellen
+if st.session_state.current_task_data is None:
+    load_task_into_state(st.session_state.selected_date)
+
+# Shortcuts für den restlichen Code definieren
+df_one_task_gefiltert = st.session_state.current_task_data
+aktuelle_task_id = st.session_state.current_task_id
+db_status = st.session_state.current_db_status
 
 # ==========================================
 # 1. NAVIGATION
@@ -127,8 +147,11 @@ with col_links:
         if selected_rows:
             selected_idx = selected_rows[0]
             neues_datum = str(df_task_gefiltert.iloc[selected_idx]["shop_date"])
+
+            # WICHTIG: Nur wenn sich das Datum ändert, triggern wir die API-Abfragen!
             if st.session_state.selected_date != neues_datum:
                 st.session_state.selected_date = neues_datum
+                load_task_into_state(neues_datum)  # Daten neu in den Session State laden
                 st.rerun()
 
 # --- RECHTE SEITE ---
@@ -145,7 +168,9 @@ with col_rechts:
                     with col_y:
                         jahr = st.number_input("Jahr", min_value=2020, max_value=2100, value=2026)
                     with col_m:
-                        monat = st.selectbox("Monat", options=["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"])
+                        monat = st.selectbox("Monat",
+                                             options=["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli",
+                                                      "August", "September", "Oktober", "November", "Dezember"])
                     shop_date = st.date_input("Shop-Datum (shop_date)")
                     abgabe_date = st.date_input("Abgabetermin (abgabe_date)")
                     geld_date = st.date_input("Geld erhalten am (geld_date)")
@@ -161,13 +186,16 @@ with col_rechts:
                     st.rerun()
 
                 if submitted:
-                    payload = {"date": str(shop_date), "monat": str(monat), "jahr": str(jahr), "shop_date": str(shop_date), "abgabe_date": str(abgabe_date), "geld_date": str(geld_date)}
+                    payload = {"date": str(shop_date), "monat": str(monat), "jahr": str(jahr),
+                               "shop_date": str(shop_date), "abgabe_date": str(abgabe_date),
+                               "geld_date": str(geld_date)}
                     try:
                         response = requests.post(f"{BASE_URL}/tasks/save/", json=payload)
                         if response.status_code in [200, 201]:
                             st.success("🎉 Vorgang erfolgreich in der DB gespeichert!")
                             st.cache_data.clear()
                             st.session_state.selected_date = str(shop_date)
+                            load_task_into_state(str(shop_date))  # Direkt neu laden
                             st.session_state.create_mode = False
                             st.rerun()
                     except Exception as e:
@@ -175,7 +203,7 @@ with col_rechts:
             else:
                 st.dataframe(df_one_task_gefiltert, hide_index=True, width="stretch", column_config={"id": None})
 
-        # Schritt 2 (BEHEBT PUNKT 3 & 4)
+        # Schritt 2 (0 API-Calls bei Betragseingabe!)
         with st.expander("Schritt 2: Sammelbuchung"):
             aktives_datum = st.session_state.selected_date
             ist_gespeichert = (str(db_status).strip().upper() == "DONE")
@@ -183,12 +211,13 @@ with col_rechts:
             df_mit_status = df_user_gefiltert.copy()
 
             if ist_gespeichert:
-                # NUR BEI DONE: Wir laden die echten Beträge aus der DB
+                # NUR bei DONE fragen wir einmalig die letzten Beträge ab (da diese schreibgeschützt geladen werden)
                 aktuelle_betraege = []
                 for _, row in df_mit_status.iterrows():
                     buchnummer = row["buchnummer"]
                     try:
-                        wallet_response = requests.get(f"{BASE_URL}/wallets/last", params={"buchnummer": buchnummer}, timeout=5)
+                        wallet_response = requests.get(f"{BASE_URL}/wallets/last", params={"buchnummer": buchnummer},
+                                                       timeout=5)
                         if wallet_response.status_code == 200:
                             aktuelle_betraege.append(str(wallet_response.json().get("betrag", "0")))
                         else:
@@ -201,8 +230,7 @@ with col_rechts:
                 button_deaktiviert = True
                 button_text = "🔒 Beträge erfolgreich gespeichert (Status: DONE)"
             else:
-                # BEHEBT PUNKT 3: KEINE API-CALLS während der Eingabe bei "OPEN"!
-                # Wir setzen einfach statisch den Standardwert, damit Streamlit flüssig läuft.
+                # Bei OPEN sind es nun absolut 0 API-Calls, egal wie viele Beträge du änderst!
                 df_mit_status["betrag"] = "Bitte wählen..."
                 disabled_spalten = ["vorname", "nachname", "buchnummer"]
                 button_deaktiviert = False
@@ -238,7 +266,7 @@ with col_rechts:
             if st.button(button_text, type="primary", disabled=button_deaktiviert, key="save_wallet_btn"):
                 gueltige_buchungen = df_editiert[
                     (df_editiert["betrag"] != "Bitte wählen...") & (df_editiert["betrag"] != "0")
-                ]
+                    ]
 
                 if gueltige_buchungen.empty:
                     st.warning("Keine gültigen Beträge zum Speichern ausgewählt.")
@@ -248,14 +276,14 @@ with col_rechts:
                     erfolgreich = 0
                     fehler = 0
 
-                    # Erst beim Klick auf den Speicherbutton feuern wir die API-Calls ab!
                     for index, row in gueltige_buchungen.iterrows():
                         buchnummer = row["buchnummer"]
                         betrag = float(row["betrag"])
 
                         old_amount = 0.0
                         try:
-                            wallet_response = requests.get(f"{BASE_URL}/wallets/last", params={"buchnummer": buchnummer}, timeout=5)
+                            wallet_response = requests.get(f"{BASE_URL}/wallets/last",
+                                                           params={"buchnummer": buchnummer}, timeout=5)
                             if wallet_response.status_code == 200:
                                 old_amount = float(wallet_response.json().get("new_amount", 0))
                         except:
@@ -283,17 +311,17 @@ with col_rechts:
                             fehler += 1
 
                     if erfolgreich > 0:
-                        # BEHEBT PUNKT 4: Richtige URL zum Status-Update aufrufen!
                         try:
-                            # Der Parameter laut Swagger lautet 'new_state=DONE'
                             status_url = f"{BASE_URL}/tasks/{aktuelle_task_id}/update_status_betrag"
                             status_response = requests.put(
                                 status_url,
-                                params={"new_state": "DONE"}, # Nutzt Query-Params 'new_state'
+                                params={"new_state": "DONE"},
                                 timeout=5
                             )
                             if status_response.status_code in [200, 201]:
                                 st.success("🎉 Buchungen gespeichert und Status auf DONE gesetzt!")
+                                # Wichtig: Direkt im State auf DONE stellen, damit beim Rerun alles gesperrt ist
+                                st.session_state.current_db_status = "DONE"
                             else:
                                 st.warning(f"Buchungen OK, aber Status-Update fehlgeschlagen: {status_response.text}")
                         except Exception as e:
@@ -307,7 +335,7 @@ with col_rechts:
         with st.expander("Schritt 3: Einkaufsliste"):
             st.dataframe(df_user_gefiltert, hide_index=True, width="stretch")
 
-        # Schritt 4 (Abbuchung analog zu Schritt 2 aufgebaut)
+        # Schritt 4
         with st.expander("Schritt 4: Abbuchung"):
             ist_gespeichert = (db_status == "DONE")
             df_mit_status = df_user_gefiltert.copy()
@@ -317,7 +345,8 @@ with col_rechts:
                 for _, row in df_mit_status.iterrows():
                     buchnummer = row["buchnummer"]
                     try:
-                        wallet_response = requests.get(f"{BASE_URL}/wallets/last", params={"buchnummer": buchnummer}, timeout=5)
+                        wallet_response = requests.get(f"{BASE_URL}/wallets/last", params={"buchnummer": buchnummer},
+                                                       timeout=5)
                         if wallet_response.status_code == 200:
                             aktuelle_betraege.append(str(wallet_response.json().get("new_amount", "0")))
                         else:
