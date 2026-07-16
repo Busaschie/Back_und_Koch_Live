@@ -50,8 +50,16 @@ def get_one_task(shop_date:date, db: Session = Depends(get_db)):
     repo = TaskRepository(db)
     return repo.find_one_tasks(shop_date)
 
+@task_router.get("/{task_id}/status_betrag", response_model=TaskUpdateState)
+def get_task_status_betrag(task_id: int, service=Depends(get_db)):
+    status = service.find_status_betrag_tasks(task_id)
+    if not status:
+        raise HTTPException(
+            detail=f"Task mit der ID {task_id} wurde nicht gefunden."
+        )
+    return status
 
-@task_router.put("/{task_id}/status_betrag", response_model=TaskUpdateState)
+@task_router.put("/{task_id}/update_status_betrag", response_model=TaskUpdateState)
 def update_status_betrag_task(task_id: int, new_state: str, db: Session = Depends(get_db)):
     repo = TaskRepository(db)
     try:
@@ -66,7 +74,7 @@ def update_status_betrag_task(task_id: int, new_state: str, db: Session = Depend
         )
     return updated_task
 
-@task_router.put("/{task_id}/status_waren", response_model=TaskUpdateState)
+@task_router.put("/{task_id}/update_status_waren", response_model=TaskUpdateState)
 def update_status_waren_task(task_id: int, new_state: str, db: Session = Depends(get_db)):
     repo = TaskRepository(db)
     try:
@@ -81,7 +89,7 @@ def update_status_waren_task(task_id: int, new_state: str, db: Session = Depends
         )
     return updated_task
 
-@task_router.put("/{task_id}/status_buchung", response_model=TaskUpdateState)
+@task_router.put("/{task_id}/update_status_buchung", response_model=TaskUpdateState)
 def update_status_buchung_task(task_id: int, new_state: str, db: Session = Depends(get_db)):
     repo = TaskRepository(db)
     try:

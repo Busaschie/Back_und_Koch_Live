@@ -415,10 +415,25 @@ with col_rechts:
                             )
 
                     if erfolgreich > 0:
-                        st.success(
-                            f"🎉 {erfolgreich} Buchung(en) erfolgreich gespeichert!"
-                        )
-                        # Status spezifisch für dieses Datum auf True setzen
+                        try:
+                            # Parameter 'new_state' wird als Query-Parameter angehängt
+                            status_payload = {"new_state": "DONE"}
+                            status_response = requests.put(
+                                f"{BASE_URL}/tasks/{aktuelle_task_id}/status_betrag",
+                                params=status_payload,
+                                timeout=5
+                            )
+                            if status_response.status_code in [200, 201]:
+                                st.success(
+                                    f"🎉 {erfolgreich} Buchung(en) erfolgreich gespeichert und Vorgangs-Status auf 'DONE' aktualisiert!")
+                            else:
+                                st.warning(
+                                    f"Buchungen gespeichert, aber Status-Update fehlgeschlagen ({status_response.status_code}): {status_response.text}"
+                                )
+                        except Exception as e:
+                            st.warning(f"Buchungen gespeichert, aber Verbindung zum Status-Update fehlgeschlagen: {e}")
+
+                            # Status spezifisch für dieses Datum auf True setzen
                         st.session_state.gespeicherte_schritte[aktives_datum] = True
                         st.rerun()
                     if fehler > 0:
