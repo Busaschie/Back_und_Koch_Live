@@ -8,6 +8,24 @@ BASE_URL = "http://localhost:8000"
 # Seite auf weites Layout stellen
 st.set_page_config(layout="wide", page_title="Artikelliste Druckansicht")
 
+# Holt sich die task_id direkt aus dem globalen Session-State
+task_id = st.session_state.get("print_task_id")
+
+if task_id:
+    task_id = int(task_id)
+    # optional zur visuellen Kontrolle:
+    st.info(f"Druckansicht aktiv für Vorgangs-ID: {task_id}")
+
+    # HIER kommt dein ganz normaler Code hin, um die Daten vom Backend zu laden:
+    # response = requests.get(f"{BASE_URL}/tasks/{task_id}/details")
+else:
+    st.error("Keine aktive Vorgangs-ID gefunden! Bitte wähle zuerst auf der Hauptseite einen Vorgang aus.")
+
+    # Ein kleiner Button, um den Nutzer zurück zur Hauptseite zu bringen
+    if st.button("🔙 Zurück zur Hauptseite"):
+        st.switch_page("main.py")  # Falls deine Hauptdatei main.py heißt, sonst anpassen
+    st.stop()
+
 # --- CSS für echtes zweispaltiges A4-Drucklayout ---
 st.markdown("""
     <style>
