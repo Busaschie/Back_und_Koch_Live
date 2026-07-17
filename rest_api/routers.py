@@ -28,6 +28,29 @@ def create_user(user_create:UserCreate, db:Session = Depends(get_db)):
     #new_user = User(vorname = user_create.vorname, nachname = user_create.nachname, zimmer_nr = user_create.zimmer_nr, buchnummer = user_create.buchnummer)
     return repo.create(new_user)
 
+@user_router.put("/{buchnummer}/update_user", response_model=UserBase)
+def update_user_buchnummer(buchnummer: str, user_data: UserBase, db: Session = Depends(get_db)):
+    repo = UserRepository(db)
+    updated_user = repo.update_user_by_buchnummer(buchnummer, user_data)
+    if not updated_user:
+        raise HTTPException(
+            detail=f"User mit Buchnummer {buchnummer} wurde nicht gefunden."
+        )
+    return updated_user
+
+@user_router.delete("/{buchnummer}/delete_user", status_code=200, response_model=UserBase)
+def delete_user_buchnummer(buchnummer: str, db: Session = Depends(get_db)):
+    repo = UserRepository(db)
+    # Aufruf der Lösch-Logik im Repository
+    erfolgreich = repo.delete_user_and_wallets_by_buchnummer(buchnummer)
+    if not erfolgreich:
+        raise HTTPException(
+            status_code=404,
+            detail=f"User mit Buchnummer {buchnummer} wurde nicht gefunden."
+        )
+    return {"message": f"User mit Buchnummer {buchnummer} und alle verknüpften Wallet-Einträge erfolgreich gelöscht."}
+
+
 '''@user_router.post("/authenticate", response_model = UserRead)
 def authenticate_user(user_login:UserLogin, db: Session = Depends(get_db)):
     print("user_login", user_login)
@@ -204,16 +227,16 @@ def update_waren(
 # -------------
 @bestellung_router.get("/", response_model=list[BestellungRead])
 def get_all_bestellung(db: Session = Depends(get_db)):
-    repo = BestellungRead(db)
+    repo = BestellungRepository(db)
     return repo.find_all_bestellung()
 
 @bestellung_router.get("/bestellung_task", response_model=list[BestellungRead])
 def get_bestellung_task(bestellung_id: int, db: Session = Depends(get_db)):
-    repo = BestellungRead(db)
+    repo = BestellungRepository(db)
     return repo.find_bestellung_by_task(bestellung_id)
 
 @bestellung_router.post("/save", response_model=BestellungRead)  # Pfad
 def create_new_bestellung(bestellung_create: BestellungCreate, db: Session = Depends(get_db)):
-    repo = BestellungRead(db)
+    repo = BestellungRepository(db)
     new_bestellung = Bestellung(**bestellung_create.model_dump())
     return repo.create_bestellung(new_bestellung)

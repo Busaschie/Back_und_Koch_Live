@@ -1,6 +1,6 @@
 from models import User, Admin, Wallet, Task, Waren, Bestellung
 from sqlalchemy.orm import Session
-from schema import WarenUpdate, WarenCreate
+from schema import WarenUpdate, WarenCreate, UserBase
 from datetime import date
 #from util import hash_password, verify_password
 
@@ -107,7 +107,6 @@ class UserRepository():
     def find_all_users(self)-> list[User]:
         return self.session.query(User).all()
 
-
     def create(self, user:User) -> User:
         existing = self.session.query(User).filter(User.buchnummer == user.buchnummer).first()
         if existing:
@@ -116,6 +115,45 @@ class UserRepository():
         self.session.commit()
         self.session.refresh(user)
         return user
+
+    def update_user_by_buchnummer(self, buchnummer: str, user_data: UserBase) -> User | None:
+        # 1. User suchen
+        db_user = self.session.query(User).filter(User.buchnummer == buchnummer).first()
+        if not db_user:
+            return None
+        # 2. Werte übertragen (setzt vorname, nachname, zimmer in der DB)
+        update_dict = user_data.model_dump(exclude_unset=True)
+        for key, value in update_dict.items():
+            setattr(db_user, key, value)
+        # 3. Speichern
+        self.session.commit()
+        self.session.refresh(db_user)
+        return db_user
+
+    def delete_user_and_wallets_by_buchnummer(self, buchnummer: str) -> bool:
+        """
+        Löscht alle Wallet-Einträge eines Users und danach den User selbst
+        basierend auf der Buchnummer.
+        Gibt True zurück, wenn der User gelöscht wurde, ansonsten False.
+        """
+        # 1. Prüfen, ob der User überhaupt existiert
+        db_user = self.session.query(User).filter(User.buchnummer == buchnummer).first()
+        if not db_user:
+            return False
+        try:
+            # 2. Alle Wallet-Einträge mit dieser Buchnummer löschen
+            # (Importiere das Wallet-Modell, falls noch nicht geschehen, z.B. aus deiner models.py)
+            self.session.query(Wallet).filter(Wallet.buchnummer == buchnummer).delete(synchronize_session=False)
+
+            # 3. Den User selbst löschen
+            self.session.delete(db_user)
+
+            # 4. Änderungen in der DB festschreiben
+            self.session.commit()
+            return True
+        except Exception as e:
+            self.session.rollback()
+            raise e
 
 # ----------------------
 # Wallet

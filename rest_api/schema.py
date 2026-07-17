@@ -54,8 +54,8 @@ class TaskUpdateState(TaskRead):
 # User
 #-----------------------------------------------
 class UserBase(BaseModel):
-    vorname:str
-    nachname:str
+    vorname:str | None = None
+    nachname:str | None = None
     zimmer_nr:int | None = None
     buchnummer:str | None = None
 

@@ -12,13 +12,13 @@ try:
         vorname="Niko",
         nachname="Busa",
         zimmer_nr=123,
-        buchnummer="123/2020"
+        buchnummer="1232020"
     )
     new_user_2 = User(
         vorname="Hans",
         nachname="Maier",
         zimmer_nr=243,
-        buchnummer="139/2021"
+        buchnummer="1392021"
     )
 
     new_wallet_1 = Wallet(
@@ -28,7 +28,7 @@ try:
         new_amount = 15,
         task_id = 1,
         betrag = 5,
-        buchnummer = "123/2020"
+        buchnummer = "1232020"
     )
     new_wallet_2 = Wallet(
         date = date(2026, 1, 1),
@@ -37,7 +37,7 @@ try:
         new_amount = 15,
         task_id = 1,
         betrag = 5,
-        buchnummer = "139/2021"
+        buchnummer = "1392021"
     )
 
     new_task = Task(
@@ -64,11 +64,11 @@ try:
     new_ware_10 = Waren(bezeichnung = "Eier", kategorie = "Milchware", menge = 1, art = "Packung", preis = 3.99)
 
     # Benutzer speichern
-    session.add_all([new_user_1, new_user_2, new_wallet_1, new_wallet_2, new_task])
+    #session.add_all([new_user_1, new_user_2, new_wallet_1, new_wallet_2, new_task])
     #session.add(new_user_1)
     #session.add(new_wallet_1)
-    #session.add(new_task)
-    #session.add_all([new_ware_1, new_ware_2, new_ware_3, new_ware_4, new_ware_5, new_ware_6, new_ware_7, new_ware_8, new_ware_9, new_ware_10])
+    session.add(new_task)
+    session.add_all([new_ware_1, new_ware_2, new_ware_3, new_ware_4, new_ware_5, new_ware_6, new_ware_7, new_ware_8, new_ware_9, new_ware_10])
 
     session.commit()
 

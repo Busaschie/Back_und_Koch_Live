@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from database import Base, engine
 from routers import user_router, wallet_router, task_router, waren_router, bestellung_router
-#pip install pydantic[email]
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
