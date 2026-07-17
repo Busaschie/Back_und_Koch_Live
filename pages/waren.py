@@ -177,7 +177,7 @@ with col_rechts:
                 with col_save:
                     save_submitted = st.form_submit_button("💾 Speichern", width="stretch")
                 with col_delete:
-                    delete_submitted = st.form_submit_button("🗑️ Artikel löschen", type="secondary", width="stretch")
+                    delete_submitted = st.form_submit_button("🗑️ Löschen", type="secondary", width="stretch")
 
             # --- Logik: Speichern ---
             if save_submitted:
@@ -203,17 +203,21 @@ with col_rechts:
             # --- Logik: Löschen ---
             if delete_submitted:
                 try:
-                    # Falls du einen DELETE-Endpunkt für Waren hast, hier eintragen.
-                    # Beispielhaft aufgerufen analog zum User-Löschen:
-                    response = requests.delete(f"{BASE_URL}/waren/{w_id}", timeout=5)
+                    # Aufruf des neuen Backend-DELETE Endpunkts
+                    response = requests.delete(f"{BASE_URL}/waren/{w_id}/waren_delete", timeout=5)
+
                     if response.status_code in [200, 204]:
                         st.success("🔥 Artikel erfolgreich gelöscht!")
+                        # Session State aufräumen
                         st.session_state.selected_waren_id = None
+                        # Warenliste im Cache/Session-State neu laden
                         load_waren()
+                        # Seite aktualisieren, damit die UI direkt sauber aussieht
                         st.rerun()
                     else:
                         st.error(f"Fehler beim Löschen oder Endpunkt nicht definiert: {response.text}")
                 except Exception as e:
                     st.error(f"Verbindung zur API fehlgeschlagen: {e}")
+
     else:
         st.info("👈 Bitte wähle links aus den Kategorien einen Artikel aus oder klicke auf 'Neuer Artikel'.")

@@ -206,7 +206,7 @@ with col_rechts:
                 with col_save:
                     save_submitted = st.form_submit_button("💾 Speichern", width="stretch")
                 with col_delete:
-                    delete_submitted = st.form_submit_button("🗑️ Benutzer löschen", type="secondary", width="stretch")
+                    delete_submitted = st.form_submit_button("🗑️ Löschen", type="secondary", width="stretch")
 
             # --- Logik: Speichern ---
             if save_submitted:

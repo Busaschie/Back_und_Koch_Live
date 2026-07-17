@@ -218,6 +218,21 @@ class WarenRepository():
         self.session.refresh(db_waren)
         return db_waren
 
+    def delete_ware(self, waren_id: int) -> Waren:
+        # 1. Eintrag in der DB suchen
+        db_ware = self.session.query(Waren).filter(Waren.id == waren_id).first()
+        # 2. Fehler werfen, falls nicht vorhanden
+        if not db_ware:
+            return None
+        # 3. Löschen und speichern
+        try:
+            db.delete(db_ware)
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            return None
+        return {"message": f"Ware mit der ID {waren_id} wurde erfolgreich gelöscht."}
+
 # ----------------------
 # Bestellung
 # ----------------------

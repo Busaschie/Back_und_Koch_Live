@@ -201,11 +201,7 @@ def create_new_waren(waren_create: WarenCreate, db: Session = Depends(get_db)):
     return repo.create_waren(waren_create)
 
 @waren_router.put("/{waren_id}/update_waren", response_model=WarenRead)
-def update_waren(
-        waren_id: int,
-        waren_data: WarenUpdate,
-        db: Session = Depends(get_db)
-):
+def update_waren(waren_id: int, waren_data: WarenUpdate, db: Session = Depends(get_db)):
     repo = TaskRepository(db)
     try:
         updated_waren = repo.update_waren(waren_id, waren_data)
@@ -222,6 +218,13 @@ def update_waren(
         )
     return updated_waren
 
+
+@waren_router.delete("/{ware_id}/waren_delete", status_code=status.HTTP_200_OK)
+def delete_ware_id(waren_id: int, db: Session = Depends(get_db)):
+    repo = WarenRepository(db)
+    deleted_waren = repo.delete_ware(db=db, waren_id=waren_id)
+    return deleted_waren
+
 # -------------
 # Bestellung
 # -------------
@@ -231,9 +234,9 @@ def get_all_bestellung(db: Session = Depends(get_db)):
     return repo.find_all_bestellung()
 
 @bestellung_router.get("/bestellung_task", response_model=list[BestellungRead])
-def get_bestellung_task(bestellung_id: int, db: Session = Depends(get_db)):
+def get_bestellung_task(task_id: int, db: Session = Depends(get_db)):
     repo = BestellungRepository(db)
-    return repo.find_bestellung_by_task(bestellung_id)
+    return repo.find_bestellung_by_task(task_id)
 
 @bestellung_router.post("/save", response_model=BestellungRead)  # Pfad
 def create_new_bestellung(bestellung_create: BestellungCreate, db: Session = Depends(get_db)):
