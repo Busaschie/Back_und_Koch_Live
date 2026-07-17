@@ -124,6 +124,18 @@ aktuelle_task_id = st.session_state.current_task_id
 db_status = st.session_state.current_db_status
 db_status_buchung = st.session_state.current_db_status_buchung
 
+# ==========================================
+# 1. NAVIGATION
+# ==========================================
+with st.container(border=True):
+    nav_col1, nav_col2, nav_col3, nav_spacer = st.columns([1, 1, 1, 7])
+    with nav_col1:
+        st.link_button("Vorgänge", "http://localhost:8501/app-fin1.py", width="stretch")
+    with nav_col2:
+        st.link_button("Konten", "http://localhost:8501/app.py", width="stretch")
+    with nav_col3:
+        st.link_button("Waren", "http://localhost:8501/settings", width="stretch")
+st.write("---")
 
 # ==========================================
 # MAIN LAYOUT
@@ -358,148 +370,11 @@ with col_rechts:
                     if fehler > 0:
                         st.error(f"⚠️ {fehler} Buchung(en) fehlgeschlagen.")
 
-        # Schritt 3: Einkaufsliste (Bestellungen ausführen)
-        with st.expander("Schritt 3: Einkaufsliste", expanded=True):
-            aktives_datum = st.session_state.selected_date
+        # Schritt 3
+        with st.expander("Schritt 3: Einkaufsliste"):
+            st.dataframe(df_user_gefiltert, hide_index=True, width="stretch")
 
-            # 1. Waren einmalig aus der API laden
-            if "global_waren" not in st.session_state or st.session_state.global_waren is None:
-                try:
-                    # Holt alle Waren aus der DB
-                    waren_response = requests.get(f"{BASE_URL}/waren", timeout=5)
-                    if waren_response.status_code == 200:
-                        st.session_state.global_waren = pd.DataFrame(waren_response.json())
-                    else:
-                        st.session_state.global_waren = pd.DataFrame()
-                except Exception as e:
-                    st.error(f"Fehler beim Laden der Waren: {e}")
-                    st.session_state.global_waren = pd.DataFrame()
-
-            df_waren = st.session_state.global_waren.copy()
-
-            if df_waren.empty:
-                st.info("Keine Waren in der Datenbank vorhanden.")
-            elif aktuelle_task_id is None:
-                st.warning(
-                    "Bitte wähle zuerst links einen gültigen Einkaufsvorgang aus (Schritt 1), um fortzufahren.")
-            else:
-                # Sicherstellen, dass das Feld 'kategorie' sortiert ist
-                df_waren = df_waren.sort_values(by="kategorie")
-
-                # 'bestellmenge' als neue Spalte hinzufügen, falls nicht vorhanden
-                if "bestellmenge" not in df_waren.columns:
-                    df_waren["bestellmenge"] = 0
-
-                # Dictionary, um die editierten Dataframes pro Kategorie zu speichern
-                kategorie_edits = {}
-
-                # Wir gruppieren die Waren nach Kategorie und erstellen für jede einen Expander
-                einzigartige_kategorien = df_waren["kategorie"].unique()
-
-                # Wir packen den Bestellprozess in ein Formular, um ungewollte Reruns beim Tippen zu verhindern
-                with st.form("bestellung_form"):
-                    st.markdown("#### Artikel nach Kategorien")
-
-                    for kat in einzigartige_kategorien:
-                        # Nur Waren dieser Kategorie filtern
-                        df_kat = df_waren[df_waren["kategorie"] == kat].copy()
-
-                        # Container für die jeweilige Kategorie
-                        with st.container(border=True):
-                            st.markdown(f"**📂 {str(kat).upper()}**")
-
-                            # Konfiguration für den Data Editor
-                            spalten_konfig_waren = {
-                                "bezeichnung": st.column_config.TextColumn("BEZEICHNUNG", disabled=True),
-                                "menge": st.column_config.NumberColumn("VORHANDENE MENGE", disabled=True),
-                                "art": st.column_config.TextColumn("ART", disabled=True),
-                                "preis": st.column_config.NumberColumn("PREIS (€)", format="%.2f €",
-                                                                       disabled=True),
-                                "bestellmenge": st.column_config.NumberColumn(
-                                    "BESTELLMENGE",
-                                    min_value=0,
-                                    max_value=1000,
-                                    step=1,
-                                    required=True
-                                ),
-                                "id": None,  # ID ausblenden
-                                "kategorie": None,  # Kategorie ausblenden (steht ja im Header)
-                            }
-
-                            # Data Editor für die Artikel dieser Kategorie
-                            edited_df = st.data_editor(
-                                df_kat,
-                                column_config=spalten_konfig_waren,
-                                hide_index=True,
-                                width="stretch",
-                                key=f"editor_{kat}_{aktives_datum}"
-                            )
-                            # Speichern für die spätere Auswertung nach dem Submit
-                            kategorie_edits[kat] = edited_df
-
-                    st.write("---")
-                    submitted_bestellung = st.form_submit_button("🛒 Bestellung abschicken & speichern",
-                                                                 type="primary")
-
-                # Verarbeitung nach dem Klick auf "Bestellung abschicken"
-                if submitted_bestellung:
-                    alle_bestellungen = []
-
-                    # Alle editierten Zeilen aus den Kategorien zusammenführen
-                    for kat, df_edited in kategorie_edits.items():
-                        # Nur Zeilen mit einer Bestellmenge > 0 filtern
-                        gueltige_bestellungen = df_edited[df_edited["bestellmenge"] > 0]
-                        if not gueltige_bestellungen.empty:
-                            alle_bestellungen.append(gueltige_bestellungen)
-
-                    if not alle_bestellungen:
-                        st.warning("Es wurden keine Bestellmengen eingetragen.")
-                    else:
-                        df_finale_bestellung = pd.concat(alle_bestellungen)
-
-                        erfolgreich = 0
-                        fehler = 0
-
-                        # Jede bestellte Ware einzeln an die API senden
-                        for _, row in df_finale_bestellung.iterrows():
-                            einzelpreis = float(row["preis"])
-                            bestellmenge = int(row["bestellmenge"])
-                            # Gesamtpreis-Berechnung: Einzelpreis * Bestellmenge
-                            gesamt_preis = einzelpreis * bestellmenge
-
-                            bestell_payload = {
-                                "task_id": aktuelle_task_id,
-                                "bezeichnung": str(row["bezeichnung"]),
-                                "menge": bestellmenge,
-                                "art": row.get("art") if pd.notna(row.get("art")) else None,
-                                "preis": einzelpreis,
-                                "gesamt_preis": gesamt_preis
-                            }
-
-                            try:
-                                # POST-Abfrage an deinen Bestellungs-Endpunkt
-                                response = requests.post(
-                                    f"{BASE_URL}/bestellungen/save",
-                                    json=bestell_payload,
-                                    timeout=5
-                                )
-                                if response.status_code in [200, 201]:
-                                    erfolgreich += 1
-                                else:
-                                    fehler += 1
-                            except Exception as e:
-                                fehler += 1
-
-                        if erfolgreich > 0:
-                            st.success(
-                                f"🎉 {erfolgreich} Artikel erfolgreich für den Vorgang (ID: {aktuelle_task_id}) bestellt!")
-                        if fehler > 0:
-                            st.error(f"⚠️ {fehler} Bestellung(en) fehlgeschlagen. Bitte API-Verbindung prüfen.")
-
-                        # Frontend neu laden, um die Eingabefelder zurückzusetzen
-                        st.rerun()
-
-        # Schritt 4: Abbuchung (Mit st.form -> Absolut KEIN Laden bei der Eingabe!)
+# Schritt 4: Abbuchung (Mit st.form -> Absolut KEIN Laden bei der Eingabe!)
         with st.expander("Schritt 4: Abbuchung"):
             aktives_datum = st.session_state.selected_date
             ist_buchung_gespeichert = (str(db_status_buchung).strip().upper() == "DONE")

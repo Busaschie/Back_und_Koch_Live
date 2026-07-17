@@ -103,6 +103,7 @@ class BestellungBase(BaseModel):
     bezeichnung:str | None = None
     menge:int
     preis:float
+    gesamt_preis:float
     task_id:int
 
 class BestellungRead(BestellungBase):

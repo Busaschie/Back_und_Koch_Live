@@ -1,6 +1,6 @@
 from models import User, Admin, Wallet, Task, Waren, Bestellung
 from sqlalchemy.orm import Session
-from schema import WarenUpdate
+from schema import WarenUpdate, WarenCreate
 from datetime import date
 #from util import hash_password, verify_password
 
@@ -116,27 +116,7 @@ class UserRepository():
         self.session.commit()
         self.session.refresh(user)
         return user
-# ----------------------
-'''
-    def find_user_by_id(self, id:int)-> User | None:
-        return self.session.get(User, id)
-    
-    def delete_user(self, user_id:int)-> User | None:
-        user = self.session.get(User, user_id)
-        if user is None:
-            return None
-        self.session.delete(user)
-        self.session.commit()
-        return user
 
-    def find_user_by_credentials(self, username:str, password:str)->User | None:
-        #hashed = bcrypt.hashpw(password.encode('utf-8'),bcrypt.gensalt())
-        stored_user = self.session.query(User).filter(User.username == username).first()
-        if not stored_user:
-            return None
-        return  stored_user if verify_password(password, stored_user.password) else None
-
-'''
 # ----------------------
 # Wallet
 # ----------------------
@@ -166,63 +146,6 @@ class WalletRepository():
         return self.session.query(Wallet).filter(Wallet.buchnummer==buchnummer).order_by(Wallet.id.desc()).first()
         #return self.session.query(Wallet).filter(Wallet.buchnummer==buchnummer).all()
 
-
-    '''
-    
-    def update_wallet_state(self, todo_id:int, new_state:str)->Wallet | None:
-        allowed = {"OPEN","IN_PROGRESS","DONE"}
-        if new_state not in allowed:
-            raise ValueError(f"Invalid State, allowed: {allowed}")
-        wallet = self.session.get(Wallet,todo_id)
-        if not wallet:
-            return None
-        wallet.state = new_state
-        self.session.commit()
-        self.session.refresh(wallet)
-        return wallet
-
-    def new_wallet_by_user(self, user_id: int, wallet: Wallet) -> Wallet:
-        user = self.session.get(User, user_id)
-        user.wallets.append(wallet)
-        self.session.commit()
-        self.session.refresh(wallet)
-        return wallet
-
-   # def find_open_todos_by_user(self,user_id:int)->list[Wallet]:
-   #     return (self.session.query(Wallet).filter(Wallet.user_id == user_id, Wallet.state == "OPEN").all())
-    
-    def find_open_wallet_by_user(self, user_id: int) -> list[Wallet]:
-        query = (
-            self.session.query(Wallet)
-            .filter(Wallet.user_id == user_id)
-            .filter(Wallet.state == "OPEN")
-        )
-        return query.all()
-
-    def delete_wallet(self, todo_id:int)-> Wallet | None:
-        """ """
-        wallet = self.session.get(Wallet,todo_id)
-        if wallet is  None:
-            return None
-        self.session.delete(wallet)
-        self.session.commit()
-        return wallet
-
-    def delete_all_done_wallet(self,user_id:int)->int:
-        wallet = (
-            self.session.query(wallet)
-            .filter(
-                Wallet.user_id == user_id,
-                Wallet.state == "DONE"
-            )
-            .all()
-        )
-        count = len(wallet)
-        for wall in wallet:
-            self.session.delete(wall)
-        self.session.commit()
-        return  count
-'''
 
 # ----------------------
 # Waren
@@ -279,3 +202,82 @@ class BestellungRepository():
     def find_bestellung_by_task(self,task_id:int)->list[Bestellung]:
         return self.session.query(Bestellung).filter(Bestellung.task_id==task_id).all()
 
+# ----------------------
+# Tolls
+# ----------------------
+
+    '''
+    def update_wallet_state(self, todo_id:int, new_state:str)->Wallet | None:
+        allowed = {"OPEN","IN_PROGRESS","DONE"}
+        if new_state not in allowed:
+            raise ValueError(f"Invalid State, allowed: {allowed}")
+        wallet = self.session.get(Wallet,todo_id)
+        if not wallet:
+            return None
+        wallet.state = new_state
+        self.session.commit()
+        self.session.refresh(wallet)
+        return wallet
+
+    def new_wallet_by_user(self, user_id: int, wallet: Wallet) -> Wallet:
+        user = self.session.get(User, user_id)
+        user.wallets.append(wallet)
+        self.session.commit()
+        self.session.refresh(wallet)
+        return wallet
+
+   def find_open_todos_by_user(self,user_id:int)->list[Wallet]:
+        return (self.session.query(Wallet).filter(Wallet.user_id == user_id, Wallet.state == "OPEN").all())
+
+    def find_open_wallet_by_user(self, user_id: int) -> list[Wallet]:
+        query = (
+            self.session.query(Wallet)
+            .filter(Wallet.user_id == user_id)
+            .filter(Wallet.state == "OPEN")
+        )
+        return query.all()
+
+    def delete_wallet(self, todo_id:int)-> Wallet | None:
+        """ """
+        wallet = self.session.get(Wallet,todo_id)
+        if wallet is  None:
+            return None
+        self.session.delete(wallet)
+        self.session.commit()
+        return wallet
+
+    def delete_all_done_wallet(self,user_id:int)->int:
+        wallet = (
+            self.session.query(wallet)
+            .filter(
+                Wallet.user_id == user_id,
+                Wallet.state == "DONE"
+            )
+            .all()
+        )
+        count = len(wallet)
+        for wall in wallet:
+            self.session.delete(wall)
+        self.session.commit()
+        return  count
+'''
+    '''
+        def find_user_by_id(self, id:int)-> User | None:
+            return self.session.get(User, id)
+
+        def delete_user(self, user_id:int)-> User | None:
+            user = self.session.get(User, user_id)
+            if user is None:
+                return None
+            self.session.delete(user)
+            self.session.commit()
+            return user
+
+        def find_user_by_credentials(self, username:str, password:str)->User | None:
+            #hashed = bcrypt.hashpw(password.encode('utf-8'),bcrypt.gensalt())
+            stored_user = self.session.query(User).filter(User.username == username).first()
+            if not stored_user:
+                return None
+            return  stored_user if verify_password(password, stored_user.password) else None
+
+    '''

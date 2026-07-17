@@ -7,11 +7,11 @@ from fastapi import FastAPI, Depends, APIRouter, HTTPException, status
 from sqlalchemy.orm import Session
 
 
-user_router = APIRouter(prefix="/users")
-wallet_router = APIRouter(prefix="/wallets")
-task_router = APIRouter(prefix="/tasks")
+user_router = APIRouter(prefix="/users", tags=["User"])
+wallet_router = APIRouter(prefix="/wallets", tags=["Wallets"])
+task_router = APIRouter(prefix="/tasks", tags=["Task"])
 waren_router = APIRouter(prefix="/waren", tags=["Waren"])
-bestellung_router = APIRouter(prefix="/bestellung")
+bestellung_router = APIRouter(prefix="/bestellung", tags=["Bestellung"])
 
 #-------------
 # User

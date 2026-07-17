@@ -66,10 +66,12 @@ class Waren(Base, BaseRepr):
     art = Column(String(20))
     preis = Column(Integer)
 
+#
 class Bestellung(Base, BaseRepr):
     __tablename__ = "bestellung"
     id = Column(Integer, primary_key=True)
     bezeichnung = Column(String(250))
     menge = Column(Integer)
     preis = Column(Integer)
+    gesamt_preis = Column(Integer)
     task_id = Column(Integer)

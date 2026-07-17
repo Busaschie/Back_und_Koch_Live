@@ -6,7 +6,7 @@ def main():
     root = Path(__file__).resolve().parent
     app_file = root / "app.py"  # weil app.py im gleichen Ordner wie main.py liegt
 
-    print("main.py dir:", root)
+    print("app_main.py dir:", root)
     print("app exists:", app_file.exists(), app_file)
 
     if not app_file.exists():

@@ -12,7 +12,8 @@ set PYTHONPATH=%CD%
 
 :: 1. FastAPI Backend im Hintergrund starten
 echo [BACKEND] Starte FastAPI Backend...
-start "FastAPI_Backend" /b %VENV_PYTHON% -m uvicorn main:app --host 127.0.0.1 --port 8000
+:: start "FastAPI_Backend" /b %VENV_PYTHON% -m uvicorn main:app --host 127.0.0.1 --port 8000
+start "FastAPI_Backend" /D "%~dp0rest_api" /b %VENV_PYTHON% -m uvicorn main:app --host 127.0.0.1 --port 8000
 
 :: Kurz warten, bis das Backend bereit ist
 timeout /t 3 /nobreak >nul
