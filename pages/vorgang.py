@@ -455,7 +455,7 @@ with col_rechts:
                     if aktuelle_task_id is not None:
                         st.session_state.print_task_id = aktuelle_task_id
                         if st.button("🛒 Wareneinkauf Beleg", type="secondary", use_container_width=True):
-                            st.switch_page("pages/warendruck.py")
+                            st.switch_page("pages/einkaufsliste_druck.py")
                     else:
                         st.button("🛒 Wareneinkauf Beleg", disabled=True, use_container_width=True)
 
@@ -585,7 +585,7 @@ with col_rechts:
                 if aktuelle_task_id is not None:
                     st.session_state.print_task_id = aktuelle_task_id
                     if st.button("🖨️ Abbuchungsbeleg drucken", type="secondary", use_container_width=True):
-                        st.switch_page("pages/waren_druck.py")
+                        st.switch_page("pages/userkonto_druck.py")
                 else:
                     st.button("🖨️ Abbuchungsbeleg drucken", disabled=True, use_container_width=True)
 

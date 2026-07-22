@@ -1,32 +1,26 @@
-import requests
-import pandas as pd
-import streamlit as st
 from datetime import datetime
+import pandas as pd
+import requests
+import streamlit as st
 
 BASE_URL = "http://localhost:8000"
 
-# Seite konfigurieren
 st.set_page_config(layout="wide", page_title="Gesamtübersicht Kontostände")
 
-# Holt sich die task_id direkt aus dem globalen Session-State
 task_id = st.session_state.get("print_task_id")
 
 if task_id:
     task_id = int(task_id)
-    # optional zur visuellen Kontrolle:
-    st.info(f"Druckansicht aktiv für Vorgangs-ID: {task_id}")
-
-    # HIER kommt dein ganz normaler Code hin, um die Daten vom Backend zu laden:
-    # response = requests.get(f"{BASE_URL}/tasks/{task_id}/details")
 else:
-    st.error("Keine aktive Vorgangs-ID gefunden! Bitte wähle zuerst auf der Hauptseite einen Vorgang aus.")
-
-    # Ein kleiner Button, um den Nutzer zurück zur Hauptseite zu bringen
+    st.error(
+        "Keine aktive Vorgangs-ID gefunden! Bitte wähle zuerst auf der"
+        " Hauptseite einen Vorgang aus."
+    )
     if st.button("🔙 Zurück zur Hauptseite"):
-        st.switch_page("main.py")  # Falls deine Hauptdatei main.py heißt, sonst anpassen
+        st.switch_page("main.py")
     st.stop()
 
-# --- Hilfsfunktion zur Formatierung der Buchnummer ---
+
 def format_buchnummer(val):
     if pd.isna(val) or val is None:
         return ""
@@ -36,35 +30,60 @@ def format_buchnummer(val):
     return val_str
 
 
-# --- CSS für exakte A4-Darstellung und sauberen Ausdruck ---
-st.markdown("""
+# --- CSS für A4 Druck und Sidebar-Ausblendung ---
+st.markdown(
+    """
     <style>
-    /* Ausblenden der Streamlit-UI beim Ausdruck */
+    /* 1. DRUCK-MODUS */
     @media print {
-        header, footer, .stButton, div[data-testid="stSidebar"], div[data-testid="stHeader"] {
-            display: none !important;
+        @page {
+            size: A4 portrait;
+            margin: 0mm;
         }
-        .main .block-container {
+
+        header, 
+        footer, 
+        .stButton, 
+        div[data-testid="stSidebar"], 
+        section[data-testid="stSidebar"],
+        nav[data-testid="stSidebarNav"],
+        div[data-testid="stHeader"], 
+        .no-print, 
+        .stAlert {
+            display: none !important;
+            visibility: hidden !important;
+            width: 0 !important;
+            height: 0 !important;
+        }
+
+        .main, .main .block-container {
             padding: 0px !important;
             margin: 0px !important;
+            width: 100% !important;
+            max-width: 100% !important;
         }
+
         body {
-            background-color: #ffffff;
+            background-color: #ffffff !important;
         }
+
         .a4-page {
             box-shadow: none !important;
-            margin: 0px !important;
             border: none !important;
+            margin: 0 auto !important;
+            padding: 1cm 1.5cm !important;
+            width: 100% !important;
+            max-width: 21cm !important;
         }
     }
 
-    /* Bildschirm-Vorschau Styling (simuliert ein A4-Blatt) */
+    /* 2. BILDSCHIRM-VORSCHAU */
     .a4-page {
         background: white;
         width: 21cm;
         min-height: 29.7cm;
-        padding: 1.5cm 1.8cm;
-        margin: 25px auto;
+        padding: 1.2cm 1.5cm;
+        margin: 20px auto;
         font-family: 'Arial', sans-serif;
         color: #000000;
         box-shadow: 0 0 10px rgba(0,0,0,0.15);
@@ -72,152 +91,156 @@ st.markdown("""
         box-sizing: border-box;
     }
 
-    /* Header & Titel */
-    .title-block {
+    .title-header {
         border-bottom: 2px solid #000000;
-        padding-bottom: 5px;
-        margin-bottom: 20px;
+        padding-bottom: 6px;
+        margin-bottom: 15px;
     }
-    .main-title {
-        font-size: 22px;
+
+    .title-main {
+        font-size: 20px;
         font-weight: bold;
         text-transform: uppercase;
     }
-    .sub-title {
-        font-size: 14px;
-        font-weight: normal;
-        color: #333333;
+
+    .title-sub {
+        font-size: 11px;
+        color: #444444;
         margin-top: 3px;
     }
 
-    /* Tabelle */
-    .overview-table {
+    .summary-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 13px;
-        margin-bottom: 25px;
-    }
-    .overview-table th, .overview-table td {
-        border: 1px solid #000000;
-        padding: 6px 10px;
-        text-align: left;
-    }
-    .overview-table th {
-        background-color: #f2f2f2;
-        font-weight: bold;
+        font-size: 12px;
+        margin-top: 10px;
+        margin-bottom: 20px;
     }
 
-    /* Berechnungs- und Infoblock am Ende */
-    .summary-box {
-        margin-top: 20px;
-        font-size: 13px;
-        line-height: 1.6;
-        border-top: 1px dashed #000000;
-        padding-top: 12px;
+    .summary-table th, .summary-table td {
+        border: 1px solid #000000 !important;
+        padding: 6px 8px;
     }
+
+    .summary-table th {
+        background-color: #f2f2f2 !important;
+        font-weight: bold;
+        text-align: left;
+        -webkit-print-color-adjust: exact;
+    }
+
+    .summary-box {
+        border: 1.5px solid #000000;
+        padding: 12px;
+        margin-top: 20px;
+        background-color: #fafafa !important;
+        font-size: 12px;
+        -webkit-print-color-adjust: exact;
+    }
+
     .summary-line {
         display: flex;
         justify-content: space-between;
-        max-width: 550px;
-        margin-bottom: 4px;
+        margin-bottom: 6px;
     }
-    .summary-label {
+
+    .summary-line:last-child {
+        margin-bottom: 0;
+        padding-top: 6px;
+        border-top: 1px solid #000000;
         font-weight: bold;
     }
-
-    .print-date {
-        font-size: 10px;
-        color: #555555;
-        margin-top: 30px;
-        text-align: right;
-    }
     </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 
-# --- API Datenabruf ---
-def load_overview_data():
+def load_print_data():
     try:
-        # 1. Alle Benutzer laden
         user_res = requests.get(f"{BASE_URL}/users", timeout=5)
         if user_res.status_code != 200:
             return None, "Fehler beim Laden der Benutzerliste."
+
         users = user_res.json()
-
-        # 2. Aktive/offene Einkaufstask laden für Beträge
-        einkauf_aktuell = 0.0
-        task_res = requests.get(f"{BASE_URL}/tasks/open", timeout=5)
-        if task_res.status_code == 200 and task_res.json():
-            open_task = task_res.json()[0]
-            # Betrag aus der DB auslesen (z.B. Feld 'warenwert' oder 'einkauf_summe', hier als Fallback 0.0)
-            einkauf_aktuell = float(open_task.get("warenwert", 0.0))
-
-        # 3. Kontostände aus den Wallets sammeln
         print_dataset = []
         gesamt_kontostand = 0.0
 
         for u in users:
-            wallet_res = requests.get(f"{BASE_URL}/wallets/wallet_user", params={"buchnummer": u["buchnummer"]},
-                                      timeout=5)
+            wallet_res = requests.get(
+                f"{BASE_URL}/wallets/wallet_user",
+                params={"buchnummer": u["buchnummer"]},
+                timeout=5,
+            )
             wallets = wallet_res.json() if wallet_res.status_code == 200 else []
 
-            current_balance = 0.0
+            balance = 0.0
             if wallets:
                 df_w = pd.DataFrame(wallets)
-                if "date" in df_w.columns:
+                if not df_w.empty and "date" in df_w.columns:
                     df_w = df_w.sort_values(by="date", ascending=False)
-                    current_balance = float(df_w.iloc[0]["new_amount"])
+                    balance = float(df_w.iloc[0]["new_amount"])
 
-            gesamt_kontostand += current_balance
+            gesamt_kontostand += balance
             print_dataset.append({
                 "buchnummer": u["buchnummer"],
                 "name": f"{u['vorname']} {u['nachname']}",
-                "balance": current_balance
+                "balance": balance,
             })
 
-        # Sortieren nach Name für eine saubere alphabetische Liste
-        print_dataset = sorted(print_dataset, key=lambda x: x["name"])
+        # Auszahlungswert für den Einkauf ermitteln
+        einkauf_aktuell = 0.0
+        shopping_res = requests.get(
+            f"{BASE_URL}/tasks/{task_id}/shopping_list", timeout=5
+        )
+        if shopping_res.status_code == 200:
+            s_data = shopping_res.json()
+            items = s_data.get("items", [])
+            for itm in items:
+                einkauf_aktuell += float(itm.get("gesamt_preis", 0.0))
 
-        context_data = {
+        ueberschuss = gesamt_kontostand - einkauf_aktuell
+
+        return {
             "dataset": print_dataset,
             "gesamt_kontostand": gesamt_kontostand,
             "einkauf_aktuell": einkauf_aktuell,
-            "ueberschuss": gesamt_kontostand - einkauf_aktuell
-        }
-        return context_data, None
-
+            "ueberschuss": ueberschuss,
+        }, None
     except Exception as e:
         return None, f"Verbindung zur API fehlgeschlagen: {e}"
 
 
-# --- Bildschirm-UI (wird beim Drucken ausgeblendet) ---
-st.write("### 🖨️ Gesamtübersicht aller Kontostände drucken")
-st.info(
-    "💡 **Tipp zum Drucken:** Drücke `STRG + P`, um die Liste sauber formatiert als A4-Dokument zu drucken oder als PDF zu speichern.")
+st.markdown(
+    f"""
+    <div class="no-print" style="background-color: #e8f4f8; padding: 12px; border-radius: 6px; margin-bottom: 15px;">
+        <h4 style="margin:0; color: #1e3d59;">🖨️ Kontostände Übersicht (Vorgang #{task_id})</h4>
+        <p style="margin: 5px 0 0 0; font-size: 13px;">💡 Drücke <code>STRG + P</code> zum Drucken.</p>
+    </div>
+""",
+    unsafe_allow_html=True,
+)
 
-if st.button("🔄 Ansicht aktualisieren"):
+if st.button("🔄 Daten frisch synchronisieren", key="sync_btn"):
     st.rerun()
 
-st.write("---")
-
-context, error = load_overview_data()
+context, error = load_print_data()
 
 if error:
     st.error(error)
-elif not context:
-    st.warning("Keine Daten vorhanden.")
+elif not context or not context.get("dataset"):
+    st.warning("Keine Daten verfügbar.")
 else:
-    druck_zeitpunkt = datetime.now().strftime('%d.%m.%Y um %H:%M')
+    druck_zeitpunkt = datetime.now().strftime("%d.%m.%Y um %H:%M")
 
-    # HTML Aufbau ohne Einrückungen am Zeilenanfang (wichtig!)
     html_gesamt = f"""
 <div class="a4-page">
-<div class="title-block">
-<div class="main-title">Back- & Kocheinkauf</div>
-<div class="sub-title">Gesamtübersicht aller Personen und Kontostände</div>
+<div class="title-header">
+<div class="title-main">Gesamtübersicht Kontostände</div>
+<div class="title-sub">Vorgangs-ID #{task_id} | Stichtag: {druck_zeitpunkt}</div>
 </div>
 
-<table class="overview-table">
+<table class="summary-table">
 <tr>
 <th style="width: 25%;">Buchnummer</th>
 <th style="width: 50%;">Name</th>
@@ -237,7 +260,6 @@ else:
 </tr>
 """
 
-    # Formatierung der finalen Summenbeträge
     gesamt_str = f"{context['gesamt_kontostand']:,.2f} €".replace(".", ",")
     einkauf_str = f"{context['einkauf_aktuell']:,.2f} €".replace(".", ",")
     ueberschuss_str = f"{context['ueberschuss']:,.2f} €".replace(".", ",")
@@ -247,22 +269,19 @@ else:
 
 <div class="summary-box">
 <div class="summary-line">
-<span class="summary-label">Aktueller Kontostand (Gesamt):</span>
+<span>Aktueller Kontostand (Gesamt):</span>
 <span>{gesamt_str}</span>
 </div>
 <div class="summary-line">
-<span class="summary-label">Bar ausgezahlt für aktuellen Einkauf (Warenwert):</span>
+<span>Bar ausgezahlt für aktuellen Einkauf (Warenwert):</span>
 <span>{einkauf_str}</span>
 </div>
-<div class="summary-line" style="border-top: 1px solid #000; margin-top: 4px; padding-top: 4px;">
-<span class="summary-label">Alter Kontostand jetzt Überschuss in Bar für aktuellen Einkauf:</span>
-<span style="font-weight: bold;">{ueberschuss_str}</span>
+<div class="summary-line">
+<span>Verbleibender Überschuss / Restsaldo:</span>
+<span>{ueberschuss_str}</span>
 </div>
 </div>
-
-<div class="print-date">Druckdatum: {druck_zeitpunkt} Uhr</div>
 </div>
 """
 
-    # Ausgabe über die native HTML-Komponente
     st.html(html_gesamt)

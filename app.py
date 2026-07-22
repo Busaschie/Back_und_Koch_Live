@@ -39,8 +39,8 @@ page_userkonto = st.Page(
     title="User Kontostand"
 )
 page_bestellung = st.Page(
-    "pages/warendruck.py",  # <-- Hier wurde der Tippfehler korrigiert
-    title="Einkaufsschein"
+    "pages/einkaufsliste_druck.py",  # <-- Hier wurde der Tippfehler korrigiert
+    title="Einkaufsliste"
 )
 
 # =========================================================

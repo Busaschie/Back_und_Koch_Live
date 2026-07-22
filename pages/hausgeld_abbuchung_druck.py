@@ -1,32 +1,28 @@
-import requests
-import pandas as pd
-import streamlit as st
 from datetime import datetime
+import pandas as pd
+import requests
+import streamlit as st
 
 BASE_URL = "http://localhost:8000"
 
-# Seite konfigurieren
-st.set_page_config(layout="wide", page_title="Hausgeld Abbuchung Druckansicht")
+st.set_page_config(
+    layout="wide", page_title="Hausgeld Abbuchung Druckansicht"
+)
 
-# Holt sich die task_id direkt aus dem globalen Session-State
 task_id = st.session_state.get("print_task_id")
 
 if task_id:
     task_id = int(task_id)
-    # optional zur visuellen Kontrolle:
-    st.info(f"Druckansicht aktiv für Vorgangs-ID: {task_id}")
-
-    # HIER kommt dein ganz normaler Code hin, um die Daten vom Backend zu laden:
-    # response = requests.get(f"{BASE_URL}/tasks/{task_id}/details")
 else:
-    st.error("Keine aktive Vorgangs-ID gefunden! Bitte wähle zuerst auf der Hauptseite einen Vorgang aus.")
-
-    # Ein kleiner Button, um den Nutzer zurück zur Hauptseite zu bringen
+    st.error(
+        "Keine aktive Vorgangs-ID gefunden! Bitte wähle zuerst auf der"
+        " Hauptseite einen Vorgang aus."
+    )
     if st.button("🔙 Zurück zur Hauptseite"):
-        st.switch_page("main.py")  # Falls deine Hauptdatei main.py heißt, sonst anpassen
+        st.switch_page("main.py")
     st.stop()
 
-# --- Hilfsfunktion zur Formatierung der Buchnummer ---
+
 def format_buchnummer(val):
     if pd.isna(val) or val is None:
         return ""
@@ -36,35 +32,60 @@ def format_buchnummer(val):
     return val_str
 
 
-# --- CSS für exakte A4-Darstellung und sauberen Ausdruck ---
-st.markdown("""
+# --- CSS: Ausblenden der Sidebar & optimierter A4-Druck ---
+st.markdown(
+    """
     <style>
-    /* Ausblenden der Streamlit-UI beim Ausdruck */
+    /* 1. DRUCK-MODUS */
     @media print {
-        header, footer, .stButton, div[data-testid="stSidebar"], div[data-testid="stHeader"] {
-            display: none !important;
+        @page {
+            size: A4 portrait;
+            margin: 0mm;
         }
-        .main .block-container {
+
+        header, 
+        footer, 
+        .stButton, 
+        div[data-testid="stSidebar"], 
+        section[data-testid="stSidebar"],
+        nav[data-testid="stSidebarNav"],
+        div[data-testid="stHeader"], 
+        .no-print, 
+        .stAlert {
+            display: none !important;
+            visibility: hidden !important;
+            width: 0 !important;
+            height: 0 !important;
+        }
+
+        .main, .main .block-container {
             padding: 0px !important;
             margin: 0px !important;
+            width: 100% !important;
+            max-width: 100% !important;
         }
+
         body {
-            background-color: #ffffff;
+            background-color: #ffffff !important;
         }
+
         .a4-page {
             box-shadow: none !important;
-            margin: 0px !important;
             border: none !important;
+            margin: 0 auto !important;
+            padding: 1cm 1.5cm !important;
+            width: 100% !important;
+            max-width: 21cm !important;
         }
     }
 
-    /* Bildschirm-Vorschau Styling (simuliert ein A4-Blatt) */
+    /* 2. BILDSCHIRM-VORSCHAU */
     .a4-page {
         background: white;
         width: 21cm;
         min-height: 29.7cm;
         padding: 1.2cm 1.5cm;
-        margin: 25px auto;
+        margin: 20px auto;
         font-family: 'Arial', sans-serif;
         color: #000000;
         box-shadow: 0 0 10px rgba(0,0,0,0.15);
@@ -72,126 +93,85 @@ st.markdown("""
         box-sizing: border-box;
     }
 
-    /* Header & Layout */
-    .header-container {
-        display: grid;
-        grid-template-columns: 1fr auto;
+    .title-header {
+        text-align: center;
         border-bottom: 2px solid #000000;
-        padding-bottom: 4px;
-        margin-bottom: 12px;
+        padding-bottom: 8px;
+        margin-bottom: 15px;
     }
-    .title {
+
+    .title-main {
         font-size: 20px;
         font-weight: bold;
         text-transform: uppercase;
     }
-    .date-badge {
-        font-size: 18px;
-        font-weight: bold;
+
+    .title-sub {
+        font-size: 11px;
+        color: #333333;
+        margin-top: 4px;
     }
 
-    .sub-title {
-        font-size: 13px;
-        font-weight: bold;
-        margin-bottom: 12px;
-    }
-
-    .info-text {
-        font-size: 11.5px;
-        line-height: 1.4;
-        margin-bottom: 15px;
-    }
-
-    /* Haupttabelle */
-    .main-table {
+    .user-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 12px;
-        margin-bottom: 20px;
+        font-size: 11px;
+        margin-top: 10px;
     }
-    .main-table th, .main-table td {
-        border: 1px solid #000000;
-        padding: 6px 8px;
-        text-align: left;
+
+    .user-table th, .user-table td {
+        border: 1px solid #000000 !important;
+        padding: 5px 6px;
         vertical-align: middle;
     }
-    .main-table th {
-        background-color: #f2f2f2;
+
+    .user-table th {
+        background-color: #f2f2f2 !important;
         font-weight: bold;
+        text-align: left;
+        -webkit-print-color-adjust: exact;
     }
 
     .amount-subtext {
         font-size: 10px;
-        color: #555555;
-        margin-top: 2px;
+        font-weight: bold;
+        color: #000000;
     }
 
-    /* Checkbox-Kästchen Style */
     .box-container {
-        display: inline-flex;
-        align-items: center;
-        margin-right: 10px;
-        font-size: 11.5px;
-        white-space: nowrap;
+        display: inline-block;
+        margin-right: 12px;
+        font-size: 11px;
     }
+
     .checkbox-mimic {
-        width: 12px;
-        height: 12px;
+        display: inline-block;
+        width: 11px;
+        height: 11px;
         border: 1px solid #000000;
         margin-right: 3px;
-        display: inline-block;
-        background-color: #ffffff;
+        vertical-align: middle;
     }
 
-    /* Fußbereich */
-    .footer-block {
-        margin-top: 20px;
-        font-size: 12px;
-        line-height: 1.5;
-    }
-    .signature-row {
-        margin-top: 30px;
+    .footer-notes {
+        font-size: 10px;
+        line-height: 1.3;
+        margin-top: 15px;
         border-top: 1px solid #000000;
-        width: 250px;
-        text-align: center;
-        padding-top: 5px;
+        padding-top: 8px;
+    }
+
+    .bold-alert {
+        font-weight: bold;
     }
     </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 
-# --- API Ladedaten ---
-def load_abbuchung_daten():
+def load_print_data():
     try:
-        # 1. Daten aus der offenen Task holen
-        monat_jahr = datetime.now().strftime("%B %Y")
-        geld_date_str = "wird bekannt gegeben"
-        shop_date_str = "wird bekannt gegeben"
-
-        task_res = requests.get(f"{BASE_URL}/tasks/open", timeout=5)
-        if task_res.status_code == 200 and task_res.json():
-            open_task = task_res.json()[0]
-
-            # Monat und Jahr aus dem Task extrahieren (falls vorhanden, sonst aktuell)
-            if "monat" in open_task and open_task["monat"]:
-                monat_jahr = f"{open_task['monat']}"
-                if "jahr" in open_task and open_task["jahr"]:
-                    monat_jahr += f" {open_task['jahr']}"
-
-            # Datumsfelder konvertieren
-            if "geld_date" in open_task and open_task["geld_date"]:
-                try:
-                    geld_date_str = datetime.strptime(open_task["geld_date"], "%Y-%m-%d").strftime("%d.%m.%Y")
-                except:
-                    geld_date_str = str(open_task["geld_date"])
-
-            if "shop_date" in open_task and open_task["shop_date"]:
-                try:
-                    shop_date_str = datetime.strptime(open_task["shop_date"], "%Y-%m-%d").strftime("%d.%m.%Y")
-                except:
-                    shop_date_str = str(open_task["shop_date"])
-
-        # 2. Alle User laden
         user_res = requests.get(f"{BASE_URL}/users", timeout=5)
         if user_res.status_code != 200:
             return None, "Fehler beim Laden der Benutzerliste."
@@ -199,90 +179,72 @@ def load_abbuchung_daten():
         users = user_res.json()
         print_dataset = []
 
-        # 3. Wallets für Kontostand laden
         for u in users:
-            wallet_res = requests.get(f"{BASE_URL}/wallets/wallet_user", params={"buchnummer": u["buchnummer"]},
-                                      timeout=5)
+            wallet_res = requests.get(
+                f"{BASE_URL}/wallets/wallet_user",
+                params={"buchnummer": u["buchnummer"]},
+                timeout=5,
+            )
             wallets = wallet_res.json() if wallet_res.status_code == 200 else []
 
-            # Letzten Eintrag ermitteln für das aktuelle Guthaben
-            current_balance = 0.0
+            balance = 0.0
             if wallets:
                 df_w = pd.DataFrame(wallets)
-                if "date" in df_w.columns:
+                if not df_w.empty and "date" in df_w.columns:
                     df_w = df_w.sort_values(by="date", ascending=False)
-                    current_balance = float(df_w.iloc[0]["new_amount"])
+                    balance = float(df_w.iloc[0]["new_amount"])
 
-            print_dataset.append({
-                "user": u,
-                "balance": current_balance
-            })
+            print_dataset.append({"user": u, "balance": balance})
 
-        context_data = {
-            "monat_jahr": monat_jahr,
-            "geld_date": geld_date_str,
-            "shop_date": shop_date_str,
-            "dataset": print_dataset
-        }
-        return context_data, None
+        return print_dataset, None
     except Exception as e:
         return None, f"Verbindung zur API fehlgeschlagen: {e}"
 
 
-# --- Bildschirm-Steuerung ---
-st.write("### 🖨️ Hausgeld-Abbuchungsliste Druckansicht")
-st.info(
-    "💡 **Drucker-Tipp:** Drücke am PC `STRG + P`, um dieses Dokument direkt als offizielle A4-Vorlage auszudrucken.")
+st.markdown(
+    f"""
+    <div class="no-print" style="background-color: #e8f4f8; padding: 12px; border-radius: 6px; margin-bottom: 15px;">
+        <h4 style="margin:0; color: #1e3d59;">🖨️ Hausgeld Abbuchung Druckansicht (Vorgang #{task_id})</h4>
+        <p style="margin: 5px 0 0 0; font-size: 13px;">💡 Drücke <code>STRG + P</code> zum Drucken.</p>
+    </div>
+""",
+    unsafe_allow_html=True,
+)
 
-if st.button("🔄 Daten frisch synchronisieren"):
+if st.button("🔄 Daten frisch synchronisieren", key="sync_btn"):
     st.rerun()
 
-st.write("---")
-
-context, error = load_abbuchung_daten()
+dataset, error = load_print_data()
 
 if error:
     st.error(error)
-elif not context:
-    st.warning("Keine Daten verfügbar.")
+elif not dataset:
+    st.warning("Keine Benutzerdaten verfügbar.")
 else:
-    # Erlaubte Standard-Zubuchungsbeträge
-    MOEGLICHE_BETRAEGE = [7, 10, 13, 15, 20, 25]
+    druck_zeitpunkt = datetime.now().strftime("%d.%m.%Y um %H:%M")
+    MOEGLICHE_BETRAEGE = [5, 10, 15, 20]
 
-    # HTML Aufbau (ohne Einrückungen linksbündig wegen Streamlit-Markdown-Bug)
     html_gesamt = f"""
 <div class="a4-page">
-<div class="header-container">
-<div class="title">Back- und Kocheinkauf</div>
-<div class="date-badge">{context['monat_jahr']}</div>
+<div class="title-header">
+<div class="title-main">Abbuchung Hausgeld</div>
+<div class="title-sub">Gültig für Vorgang #{task_id} | Erstellt am: {druck_zeitpunkt}</div>
 </div>
-
-<div class="sub-title">Bitte bis, {context['geld_date']} in die Liste eintragen.</div>
-
-<div class="info-text">
-<strong>Hinweis:</strong> Auf die ausreichende Deckung der Hausgeldkonten muss selbständig geachtet werden.<br>
-Bei mangelnder Deckung und ohne Unterschrift erfolgt keine Buchung für den Back- und Kocheinkauf.<br>
-Keine automatische Erinnerung. Es kann max. € 30,- auf dem Konto vorhanden sein.<br><br>
-Der nächste Back- und Kocheinkauf findet voraussichtlich am <strong>{context['shop_date']}</strong> statt.
-</div>
-
-<table class="main-table">
+<table class="user-table">
 <tr>
-<th style="width: 30%;">Name</th>
-<th style="width: 18%;">Buchnr.</th>
-<th style="width: 37%;">Betrag</th>
-<th style="width: 15%;">Unterschrift</th>
+<th style="width: 28%;">Name / Kontostand</th>
+<th style="width: 17%;">Buchnummer</th>
+<th style="width: 35%;">Möglicher Abbuchungsbetrag</th>
+<th style="width: 20%;">Unterschrift</th>
 </tr>
 """
 
-    for item in context["dataset"]:
+    for item in dataset:
         user = item["user"]
         balance = item["balance"]
-
         balance_str = f"{balance:,.2f} €".replace(".", ",")
         formatierte_nr = format_buchnummer(user["buchnummer"])
 
-        # Spalte 1 Name und Kontostand generieren
         html_gesamt += f"""
 <tr>
 <td>
@@ -293,7 +255,6 @@ Der nächste Back- und Kocheinkauf findet voraussichtlich am <strong>{context['s
 <td>
 """
 
-        # Spalte 3: Dynamische Kästchenberechnung (Betrag + Kontostand < 30)
         kaestchen_sichtbar = 0
         for betrag in MOEGLICHE_BETRAEGE:
             if (balance + betrag) < 30.0:
@@ -305,25 +266,18 @@ Der nächste Back- und Kocheinkauf findet voraussichtlich am <strong>{context['s
         if kaestchen_sichtbar == 0:
             html_gesamt += """<span style="color:#666; font-style:italic; font-size:11px;">Konto voll (Max. 30€)</span>"""
 
-        # Spalte 4: Unterschrift blanko anhängen
         html_gesamt += """
 </td>
 <td>&nbsp;</td>
 </tr>
 """
 
-    # Abschluss der Tabelle und Zahlstellen-Infotext anhängen
     html_gesamt += """
 </table>
-
-<div class="footer-block">
-<strong>An die Zahlstelle:</strong><br>
-Wir bitten die o.g. Beträge von dem jeweiligen Hausgeldkonto abzubuchen und für die Teilnahme am Back- und Kocheinkauf bereitzustellen.<br>
-Vielen Dank!
-<div class="signature-row">Unterschrift Projektleitung / Zahlstelle</div>
+<div class="footer-notes">
+<span class="bold-alert">Hinweis:</span> Die Abbuchung erfolgt durch die Verwaltung. Der gewählte Betrag wird dem Benutzerkonto gutgeschrieben. Max. Kontostand: 30,00 €.
 </div>
 </div>
 """
 
-    # Ausgabe des bereinigten HTML-Strings
     st.html(html_gesamt)

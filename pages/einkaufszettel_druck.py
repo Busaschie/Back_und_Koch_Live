@@ -1,32 +1,26 @@
-import requests
-import pandas as pd
-import streamlit as st
 from datetime import datetime
+import pandas as pd
+import requests
+import streamlit as st
 
 BASE_URL = "http://localhost:8000"
 
 # Seite konfigurieren
 st.set_page_config(layout="wide", page_title="A4 Abrechnung Druckansicht")
 
-# Holt sich die task_id direkt aus dem globalen Session-State
+# Task-ID prüfen
 task_id = st.session_state.get("print_task_id")
 
-if task_id:
-    task_id = int(task_id)
-    # optional zur visuellen Kontrolle:
-    st.info(f"Druckansicht aktiv für Vorgangs-ID: {task_id}")
-
-    # HIER kommt dein ganz normaler Code hin, um die Daten vom Backend zu laden:
-    # response = requests.get(f"{BASE_URL}/tasks/{task_id}/details")
-else:
-    st.error("Keine aktive Vorgangs-ID gefunden! Bitte wähle zuerst auf der Hauptseite einen Vorgang aus.")
-
-    # Ein kleiner Button, um den Nutzer zurück zur Hauptseite zu bringen
+if not task_id:
+    st.error(
+        "Keine aktive Vorgangs-ID gefunden! Bitte wähle zuerst auf der"
+        " Hauptseite einen Vorgang aus."
+    )
     if st.button("🔙 Zurück zur Hauptseite"):
-        st.switch_page("main.py")  # Falls deine Hauptdatei main.py heißt, sonst anpassen
+        st.switch_page("main.py")
     st.stop()
 
-# --- Hilfsfunktion zur Formatierung der Buchnummer ---
+
 def format_buchnummer(val):
     if pd.isna(val) or val is None:
         return ""
@@ -36,37 +30,71 @@ def format_buchnummer(val):
     return val_str
 
 
-# --- CSS für exakte A4-Seitenumbrüche und Look & Feel des Scans ---
-st.markdown("""
+# --- CSS: Perfektes A4 Hochformat ohne Sidebar & ohne leere Zwischenseiten ---
+st.markdown(
+    """
     <style>
-    /* Ausblenden der Streamlit-UI beim Ausdruck */
+    /* 1. DRUCK-MODUS (STRG + P / PDF-Export) */
     @media print {
-        header, footer, .stButton, div[data-testid="stSidebar"], div[data-testid="stHeader"] {
-            display: none !important;
+        @page {
+            size: A4 portrait;
+            margin: 0mm; /* Entfernt Standard-Ränder */
         }
-        .main .block-container {
+
+        /* Komplettes Ausblenden aller Navigationselemente, 
+           Sidebars (stSidebar, stSidebarNav), Header, Buttons & Popups 
+        */
+        header, 
+        footer, 
+        .stButton, 
+        div[data-testid="stSidebar"], 
+        section[data-testid="stSidebar"],
+        nav[data-testid="stSidebarNav"],
+        div[data-testid="stHeader"], 
+        .no-print, 
+        .stAlert {
+            display: none !important;
+            visibility: hidden !important;
+            width: 0 !important;
+            height: 0 !important;
+        }
+
+        /* Hauptcontainer auf die volle Breite dehnen */
+        .main, .main .block-container {
             padding: 0px !important;
             margin: 0px !important;
+            width: 100% !important;
+            max-width: 100% !important;
         }
+
         body {
-            background-color: #ffffff;
+            background-color: #ffffff !important;
+            margin: 0 !important;
         }
+
+        /* A4 Blatteinstellungen */
         .a4-page {
-            page-break-after: always; /* WICHTIG: Erzwingt eine neue Seite pro User */
             box-shadow: none !important;
-            margin: 0px !important;
             border: none !important;
-            height: 29.3cm; /* Verhindert das Erzeugen leerer Zwischenseiten */
+            margin: 0 auto !important;
+            padding: 1cm 1.5cm !important;
+            width: 100% !important;
+            max-width: 21cm !important;
+            height: auto !important;
+            min-height: 28cm !important;
+            page-break-after: always !important; /* Exakter Umbruch pro Person */
+            page-break-inside: avoid !important;
+            box-sizing: border-box !important;
         }
     }
 
-    /* Bildschirm-Vorschau Styling (simuliert A4-Blätter) */
+    /* 2. BILDSCHIRM-VORSCHAU */
     .a4-page {
         background: white;
         width: 21cm;
-        height: 29.7cm;
+        min-height: 29.7cm;
         padding: 1.2cm 1.5cm;
-        margin: 25px auto;
+        margin: 20px auto;
         font-family: 'Arial', sans-serif;
         color: #000000;
         box-shadow: 0 0 10px rgba(0,0,0,0.15);
@@ -74,91 +102,91 @@ st.markdown("""
         box-sizing: border-box;
     }
 
-    /* Überschrift & Header-Layout */
     .title {
-        font-size: 22px;
+        font-size: 20px;
         font-weight: bold;
         text-transform: uppercase;
         border-bottom: 2px solid #000000;
         padding-bottom: 4px;
-        margin-bottom: 15px;
+        margin-bottom: 12px;
     }
 
     .user-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        font-size: 14px;
-        line-height: 1.6;
-        margin-bottom: 20px;
+        font-size: 13px;
+        line-height: 1.5;
+        margin-bottom: 15px;
     }
 
     .section-title {
-        font-size: 13px;
+        font-size: 12px;
         font-weight: bold;
-        margin-top: 15px;
-        margin-bottom: 6px;
+        margin-top: 12px;
+        margin-bottom: 5px;
         text-decoration: underline;
     }
 
-    /* Tabellen Styling (Letzte Buchungen) */
     .booking-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 12px;
-        margin-bottom: 15px;
+        font-size: 11px;
+        margin-bottom: 10px;
     }
     .booking-table th, .booking-table td {
-        border: 1px solid #000000;
-        padding: 5px 8px;
+        border: 1px solid #000000 !important;
+        padding: 4px 6px;
         text-align: left;
     }
     .booking-table th {
-        background-color: #f2f2f2;
+        background-color: #f2f2f2 !important;
         font-weight: bold;
+        -webkit-print-color-adjust: exact;
     }
 
-    /* Blanko-Bestelltabelle */
     .order-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 12px;
+        font-size: 11px;
         margin-top: 5px;
     }
     .order-table th, .order-table td {
-        border: 1px solid #000000;
-        padding: 7px 6px; /* Bietet Platz für händische Notizen */
+        border: 1px solid #000000 !important;
+        padding: 6px 5px;
     }
     .order-table th {
-        background-color: #f2f2f2;
+        background-color: #f2f2f2 !important;
+        font-weight: bold;
+        -webkit-print-color-adjust: exact;
     }
 
-    /* Unterschriften & Fußnoten */
     .signature-block {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 50px;
-        margin-top: 35px;
-        font-size: 12px;
+        gap: 40px;
+        margin-top: 30px;
+        font-size: 11px;
     }
     .sig-line {
         border-top: 1px solid #000000;
         text-align: center;
-        padding-top: 5px;
-        margin-top: 20px;
+        padding-top: 4px;
+        margin-top: 15px;
     }
     .footer-notes {
-        font-size: 10.5px;
-        line-height: 1.4;
-        margin-top: 25px;
+        font-size: 10px;
+        line-height: 1.3;
+        margin-top: 20px;
     }
     .bold-alert {
         font-weight: bold;
     }
     </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 
-# --- API Ladedaten (User, Letzte Tasks & Wallets) ---
 def load_print_data():
     try:
         abgabe_str = "wird bekannt gegeben"
@@ -167,8 +195,10 @@ def load_print_data():
             open_task = task_res.json()[0]
             if "abgabe_date" in open_task and open_task["abgabe_date"]:
                 try:
-                    abgabe_str = datetime.strptime(open_task["abgabe_date"], "%Y-%m-%d").strftime("%d.%m.%Y")
-                except:
+                    abgabe_str = datetime.strptime(
+                        open_task["abgabe_date"], "%Y-%m-%d"
+                    ).strftime("%d.%m.%Y")
+                except Exception:
                     abgabe_str = str(open_task["abgabe_date"])
 
         user_res = requests.get(f"{BASE_URL}/users", timeout=5)
@@ -179,29 +209,34 @@ def load_print_data():
         print_dataset = []
 
         for u in users:
-            wallet_res = requests.get(f"{BASE_URL}/wallets/wallet_user", params={"buchnummer": u["buchnummer"]},
-                                      timeout=5)
+            wallet_res = requests.get(
+                f"{BASE_URL}/wallets/wallet_user",
+                params={"buchnummer": u["buchnummer"]},
+                timeout=5,
+            )
             wallets = wallet_res.json() if wallet_res.status_code == 200 else []
-            print_dataset.append({
-                "user": u,
-                "wallets": wallets,
-                "abgabe_date": abgabe_str
-            })
+            print_dataset.append(
+                {"user": u, "wallets": wallets, "abgabe_date": abgabe_str}
+            )
 
         return print_dataset, None
     except Exception as e:
         return None, f"Verbindung zur API fehlgeschlagen: {e}"
 
 
-# --- Bildschirm-Steuerung ---
-st.write("### 🖨️ Automatische A4-Sammelmappe zum Ausdrucken")
-st.info(
-    "💡 **Drucker-Tipp:** Drücke am PC `STRG + P`. Jeder Benutzer wird automatisch sauber getrennt auf ein eigenes A4-Blatt gedruckt.")
+# --- Oberer Bildschirm-Bereich (In .no-print gewrappt = beim Drucken unsichtbar) ---
+st.markdown(
+    f"""
+    <div class="no-print" style="background-color: #e8f4f8; padding: 12px; border-radius: 6px; margin-bottom: 15px;">
+        <h4 style="margin:0; color: #1e3d59;">🖨️ Druckansicht aktiv für Vorgangs-ID: {task_id}</h4>
+        <p style="margin: 5px 0 0 0; font-size: 13px;">💡 <strong>Tipp:</strong> Drücke <code>STRG + P</code> zum Drucken. Stelle im Druckmenü unbedingt <strong>Hochformat</strong> und <strong>A4</strong> ein!</p>
+    </div>
+""",
+    unsafe_allow_html=True,
+)
 
-if st.button("🔄 Daten frisch synchronisieren"):
+if st.button("🔄 Daten frisch synchronisieren", key="sync_btn"):
     st.rerun()
-
-st.write("---")
 
 dataset, error = load_print_data()
 
@@ -211,7 +246,7 @@ elif not dataset:
     st.warning("Keine Benutzerdaten verfügbar.")
 else:
     html_gesamt = ""
-    druck_zeitpunkt = datetime.now().strftime('%d.%m.%Y um %H:%M')
+    druck_zeitpunkt = datetime.now().strftime("%d.%m.%Y um %H:%M")
 
     for item in dataset:
         user = item["user"]
@@ -230,8 +265,6 @@ else:
         zur_verfuegung_str = f"{zur_verfuegung_val:,.2f} €".replace(".", ",")
         formatierte_nr = format_buchnummer(user["buchnummer"])
 
-        # WICHTIG: Die Zeilen sind ganz an den linken Rand gerückt (keine Tabs/Leerzeichen am Zeilenanfang),
-        # damit Markdown es niemals als Code-Block missversteht!
         html_gesamt += f"""
 <div class="a4-page">
 <div class="title">Back- & Kocheinkauf</div>
@@ -241,7 +274,7 @@ else:
 <strong>Buchnummer:</strong> {formatierte_nr}
 </div>
 <div style="text-align: right;">
-<strong>Zur Verfügung:</strong> <span style="font-size:16px; font-weight:bold;">{zur_verfuegung_str}</span><br>
+<strong>Zur Verfügung:</strong> <span style="font-size:15px; font-weight:bold;">{zur_verfuegung_str}</span><br>
 <span style="font-size:10px; color:#555;">Druckdatum: {druck_zeitpunkt}</span>
 </div>
 </div>
@@ -258,13 +291,15 @@ else:
             html_gesamt += """<tr><td colspan="3" style="text-align:center; color:#666; font-style:italic;">Keine Buchungen auf dem Konto vorhanden.</td></tr>"""
         else:
             for b in buchungen_fuenf:
-                raw_date = b.get('date', '')
+                raw_date = b.get("date", "")
                 try:
-                    formatted_b_date = datetime.strptime(raw_date.split("T")[0], "%Y-%m-%d").strftime("%d.%m.%Y")
-                except:
+                    formatted_b_date = datetime.strptime(
+                        raw_date.split("T")[0], "%Y-%m-%d"
+                    ).strftime("%d.%m.%Y")
+                except Exception:
                     formatted_b_date = str(raw_date)
 
-                b_betrag = float(b.get('betrag', 0.0))
+                b_betrag = float(b.get("betrag", 0.0))
                 b_betrag_str = f"{b_betrag:,.2f} €".replace(".", ",")
                 color_style = "color: #b30000;" if b_betrag < 0 else ""
 
@@ -278,10 +313,10 @@ else:
 
         html_gesamt += f"""
 </table>
-<div style="margin-top: 15px; font-size: 13px; font-weight: bold;">
+<div style="margin-top: 10px; font-size: 12px; font-weight: bold;">
 Abgabetermin ist der <span style="text-decoration: underline;">{abgabe_termin}</span>*
 </div>
-<div class="section-title" style="margin-top: 15px;">Hier Bitte die Ware eintragen**:</div>
+<div class="section-title" style="margin-top: 10px;">Hier Bitte die Ware eintragen**:</div>
 <table class="order-table">
 <tr>
 <th style="width: 10%;">Stück</th>
@@ -312,8 +347,8 @@ Abgabetermin ist der <span style="text-decoration: underline;">{abgabe_termin}</
 </tr>
 </table>
 <div class="section-title">Anmerkungen:</div>
-<div style="border-bottom: 1px dashed #444; margin-top: 18px;"></div>
-<div style="border-bottom: 1px dashed #444; margin-top: 18px;"></div>
+<div style="border-bottom: 1px dashed #444; margin-top: 15px;"></div>
+<div style="border-bottom: 1px dashed #444; margin-top: 15px;"></div>
 <div class="signature-block">
 <div class="sig-line">Unterschrift für die Bestellung</div>
 <div class="sig-line">Unterschrift bei Erhalt der Lieferung</div>
@@ -326,5 +361,4 @@ Abgabetermin ist der <span style="text-decoration: underline;">{abgabe_termin}</
 </div>
 """
 
-    # Verwendung der nativen HTML-Komponente von Streamlit schützt vor fehlerhaftem Markdown-Parsing
     st.html(html_gesamt)

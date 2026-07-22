@@ -11,7 +11,6 @@ def format_buchnummer(val):
     if pd.isna(val) or val is None:
         return ""
     val_str = str(val).strip()
-    # Wenn die Buchnummer lang genug ist, fügen wir vor den letzten 4 Zeichen ein "/" ein
     if len(val_str) > 4:
         return f"{val_str[:-4]}/{val_str[-4:]}"
     return val_str
@@ -52,7 +51,6 @@ def load_users():
 
 
 def load_wallets_by_buchnummer(buchnummer: str):
-    # API erwartet die unformatierte Buchnummer
     reine_buchnummer = str(buchnummer).replace("/", "")
     try:
         wallet_response = requests.get(
@@ -87,7 +85,12 @@ with col_links:
         if st.button("➕ Neuer User", width="stretch", type="primary"):
             st.session_state.create_mode = True
             st.session_state.manual_booking_mode = False
-            st.session_state.selected_user_index = None  # Auswahl zurücksetzen
+            st.session_state.selected_user_index = None
+
+            # WICHTIG: Tabellen-Auswahl im Session State zurücksetzen!
+            if "user_select_table" in st.session_state:
+                del st.session_state["user_select_table"]
+
             st.rerun()
 
         st.write("---")
@@ -95,10 +98,8 @@ with col_links:
         if df_users.empty:
             st.info("Keine Benutzer in der Datenbank gefunden.")
         else:
-            # Für die linke Spalte filtern wir nur Vorname und Nachname für die Anzeige
             df_anzeige = df_users[["vorname", "nachname"]].copy()
 
-            # Großgeschriebene Spaltenüberschriften
             column_config_links = {
                 "vorname": st.column_config.TextColumn("VORNAME"),
                 "nachname": st.column_config.TextColumn("NACHNAME"),
@@ -115,14 +116,14 @@ with col_links:
             )
 
             selected_rows = event.get("selection", {}).get("rows", [])
-            if selected_rows:
+
+            # Nur verarbeiten, wenn WIRKLICH ein User ausgewählt wurde und nicht "Neuer User" aktiv ist
+            if selected_rows and not st.session_state.create_mode:
                 neuer_index = selected_rows[0]
-                # Wenn ein anderer User ausgewählt wird, schließen wir geöffnete Formulare
                 if st.session_state.selected_user_index != neuer_index:
                     st.session_state.manual_booking_mode = False
 
                 st.session_state.selected_user_index = neuer_index
-                st.session_state.create_mode = False
 
 # --- RECHTE SEITE: Formulare ---
 with col_rechts:
@@ -165,10 +166,6 @@ with col_rechts:
                         "❌ Abbrechen", type="secondary", width="stretch"
                     )
 
-            if create_canceled:
-                st.session_state.create_mode = False
-                st.rerun()
-
             if create_submitted:
                 if not neu_vorname or not neu_nachname or not neu_buchnummer:
                     st.error(
@@ -197,9 +194,13 @@ with col_rechts:
                             load_users()
                             st.rerun()
                         else:
-                            st.error(
-                                f"Fehler: {response.json().get('detail', response.text)}"
-                            )
+                            # Sichere Fehlerbehandlung (verhindert JSONDecodeError)
+                            try:
+                                err_detail = response.json().get("detail", response.text)
+                            except Exception:
+                                err_detail = response.text or f"HTTP Fehler {response.status_code}"
+                            st.error(f"Fehler beim Anlegen: {err_detail}")
+
                     except Exception as e:
                         st.error(f"Verbindung zur API fehlgeschlagen: {e}")
 
@@ -286,6 +287,8 @@ with col_rechts:
                             "🔥 Benutzer und alle verknüpften Wallet-Einträge gelöscht!"
                         )
                         st.session_state.selected_user_index = None
+                        if "user_select_table" in st.session_state:
+                            del st.session_state["user_select_table"]
                         load_users()
                         st.rerun()
                     else:
@@ -304,9 +307,9 @@ with col_rechts:
             # BUTTON ZUM ÖFFNEN DES MANUELLEN BUCHUNGSFORMULARS
             if not st.session_state.manual_booking_mode:
                 if st.button(
-                    "💶 Manuelle Buchung durchführen",
-                    type="primary",
-                    width="stretch",
+                        "💶 Manuelle Buchung durchführen",
+                        type="primary",
+                        width="stretch",
                 ):
                     st.session_state.manual_booking_mode = True
                     st.rerun()
@@ -365,7 +368,6 @@ with col_rechts:
                                 "Bitte gib einen Grund für die Buchung an."
                             )
                         else:
-                            # 1. Letztes Guthaben abfragen
                             old_amount = 0.0
                             try:
                                 wallet_res = requests.get(
@@ -382,18 +384,14 @@ with col_rechts:
                             except Exception:
                                 old_amount = 0.0
 
-                            # 2. Rechnungsbetrag bestimmen (+ oder -)
-                            is_deposit = (
-                                "Hinzubuchen" in buchungs_art
-                            )
+                            is_deposit = "Hinzubuchen" in buchungs_art
                             betrag_final = (
                                 betrag_eingabe if is_deposit else -betrag_eingabe
                             )
                             new_amount = old_amount + betrag_final
 
-                            # 3. Payload zusammenstellen
                             wallet_payload = {
-                                "task_id": 0,  # 0 steht für manuelle Direktbuchung ohne Task
+                                "task_id": 0,
                                 "buchnummer": rohe_buchnummer,
                                 "betrag": betrag_final,
                                 "old_amount": old_amount,
@@ -412,9 +410,7 @@ with col_rechts:
                                     st.success(
                                         f"🎉 Buchung von {betrag_final:+.2f} € erfolgreich durchgeführt!"
                                     )
-                                    st.session_state.manual_booking_mode = (
-                                        False
-                                    )
+                                    st.session_state.manual_booking_mode = False
                                     st.rerun()
                                 else:
                                     st.error(
@@ -435,9 +431,10 @@ with col_rechts:
                     "Für diesen Benutzer existieren noch keine Wallet-Buchungen."
                 )
             else:
-                if "date" in df_wallets.columns:
+                # Sortierung nach Wallet-ID absteigend (neuste zuerst)
+                if "id" in df_wallets.columns:
                     df_wallets = df_wallets.sort_values(
-                        by="date", ascending=False
+                        by="id", ascending=False
                     )
 
                 column_config_wallets = {

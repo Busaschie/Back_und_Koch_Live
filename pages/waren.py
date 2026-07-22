@@ -200,22 +200,30 @@ with col_rechts:
                 except Exception as e:
                     st.error(f"Verbindung zur API fehlgeschlagen: {e}")
 
-            # --- Logik: Löschen ---
+            # --- Logik: Löschen im Frontend ---
             if delete_submitted:
                 try:
-                    # Aufruf des neuen Backend-DELETE Endpunkts
-                    response = requests.delete(f"{BASE_URL}/waren/{w_id}/waren_delete", timeout=5)
+                    # Explizit int(w_id) nutzen
+                    clean_id = int(w_id)
+
+                    response = requests.delete(
+                        f"{BASE_URL}/waren/{clean_id}/waren_delete",
+                        params={"waren_id": clean_id},
+                        timeout=5
+                    )
 
                     if response.status_code in [200, 204]:
                         st.success("🔥 Artikel erfolgreich gelöscht!")
-                        # Session State aufräumen
                         st.session_state.selected_waren_id = None
-                        # Warenliste im Cache/Session-State neu laden
                         load_waren()
-                        # Seite aktualisieren, damit die UI direkt sauber aussieht
                         st.rerun()
                     else:
-                        st.error(f"Fehler beim Löschen oder Endpunkt nicht definiert: {response.text}")
+                        # Detaillierte Fehlermeldung anzeigen
+                        try:
+                            err_msg = response.json().get("detail", response.text)
+                        except Exception:
+                            err_msg = response.text
+                        st.error(f"Fehler beim Löschen: {err_msg}")
                 except Exception as e:
                     st.error(f"Verbindung zur API fehlgeschlagen: {e}")
 
