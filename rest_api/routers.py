@@ -202,7 +202,7 @@ def create_new_waren(waren_create: WarenCreate, db: Session = Depends(get_db)):
 
 @waren_router.put("/{waren_id}/update_waren", response_model=WarenRead)
 def update_waren(waren_id: int, waren_data: WarenUpdate, db: Session = Depends(get_db)):
-    repo = TaskRepository(db)
+    repo = WarenRepository(db)
     try:
         updated_waren = repo.update_waren(waren_id, waren_data)
     except Exception as e:

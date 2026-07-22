@@ -2,6 +2,7 @@ from datetime import date
 import pandas as pd
 import requests
 import streamlit as st
+import time
 
 BASE_URL = "http://localhost:8000"
 
@@ -87,8 +88,7 @@ def fetch_api_one_task(shop_date: str):
         if response.status_code != 200:
             return None
         data = response.json()
-        df = pd.DataFrame(data) if isinstance(data, list) else pd.DataFrame([data]) if isinstance(data,
-                                                                                                  dict) else pd.DataFrame()
+        df = pd.DataFrame(data) if isinstance(data, list) else pd.DataFrame([data]) if isinstance(data, dict) else pd.DataFrame()
         erwartete_spalten = ["id", "monat", "jahr", "shop_date", "abgabe_date", "geld_date"]
         return df[[col for col in erwartete_spalten if col in df.columns]].copy()
     except Exception as e:
@@ -455,7 +455,7 @@ with col_rechts:
                     if aktuelle_task_id is not None:
                         st.session_state.print_task_id = aktuelle_task_id
                         if st.button("🛒 Wareneinkauf Beleg", type="secondary", use_container_width=True):
-                            st.switch_page("pages/warenddruck.py")
+                            st.switch_page("pages/warendruck.py")
                     else:
                         st.button("🛒 Wareneinkauf Beleg", disabled=True, use_container_width=True)
 
@@ -598,16 +598,61 @@ with col_rechts:
                 else:
                     erfolgreich = 0
                     fehler = 0
-                    for index, row in gueltige_abbuchungen.iterrows():
-                        buchnummer = str(row["buchnummer"]).replace("/", "")
-                        abbuchungs_betrag = float(row["abbuchung"])
-                        altes_guthaben = 0.0
-                        try:
-                            wallet_response = requests.get(f"{BASE_URL}/wallets/last",
-                                                           params={"buchnummer": buchnummer}, timeout=5)
-                            if wallet_response.status_code == 200:
-                                altes_guthaben = float(wallet_response.json().get("new_amount", 0.0))
-                        except:
+
+                    with st.spinner("Speichere Abbuchungen..."):
+                        for index, row in gueltige_abbuchungen.iterrows():
+                            buchnummer = str(row["buchnummer"]).replace("/", "")
+                            abbuchungs_betrag = float(row["abbuchung"])
                             altes_guthaben = 0.0
 
-                        neues_guthaben = altes_guthaben - abbuchungs_betrag
+                            try:
+                                wallet_response = requests.get(
+                                    f"{BASE_URL}/wallets/last",
+                                    params={"buchnummer": buchnummer},
+                                    timeout=5
+                                )
+                                if wallet_response.status_code == 200:
+                                    altes_guthaben = float(wallet_response.json().get("new_amount", 0.0))
+                            except Exception:
+                                altes_guthaben = 0.0
+
+                            neues_guthaben = altes_guthaben - abbuchungs_betrag
+
+                            wallet_payload = {
+                                "task_id": int(aktuelle_task_id),
+                                "buchnummer": buchnummer,
+                                "betrag": -abbuchungs_betrag,  # Negativer Betrag für Abbuchung
+                                "old_amount": altes_guthaben,
+                                "new_amount": neues_guthaben,
+                                "grund": f"Abbuchung Einkaufsliste vom {date.today()}",
+                                "date": str(date.today())
+                            }
+
+                            try:
+                                post_response = requests.post(f"{BASE_URL}/wallets/save", json=wallet_payload, timeout=5)
+                                if post_response.status_code in [200, 201]:
+                                    erfolgreich += 1
+                                else:
+                                    fehler += 1
+                            except Exception:
+                                fehler += 1
+
+                    if erfolgreich > 0:
+                        try:
+                            # Status der Buchung auf DONE setzen
+                            status_url = f"{BASE_URL}/tasks/{aktuelle_task_id}/update_status_buchung"
+                            status_response = requests.put(status_url, params={"new_state": "DONE"}, timeout=5)
+                            if status_response.status_code in [200, 201]:
+                                st.success("🎉 Abbuchungen erfolgreich gespeichert und Status auf DONE gesetzt!")
+                                st.session_state.current_db_status_buchung = "DONE"
+                            else:
+                                st.warning(f"Abbuchung OK, aber Status-Update fehlgeschlagen: {status_response.text}")
+                        except Exception as e:
+                            st.warning(f"Fehler bei Verbindung zum Status-Update: {e}")
+
+                        time.sleep(1)
+                        load_task_into_state(aktives_datum)
+                        st.rerun()
+
+                    if fehler > 0:
+                        st.error(f"⚠️ {fehler} Abbuchung(en) fehlgeschlagen.")
