@@ -172,9 +172,50 @@ st.markdown(
 
 def load_print_data():
     try:
+        abgabe_str = "wird bekannt gegeben"
+
+        # 1. Abfrage des spezifischen Tasks über die task_id
+        task_res = requests.get(f"{BASE_URL}/tasks/{task_id}", timeout=5)
+        raw_date = None
+
+        if task_res.status_code == 200 and task_res.json():
+            task_data = task_res.json()
+            if isinstance(task_data, list) and len(task_data) > 0:
+                task_data = task_data[0]
+
+            if isinstance(task_data, dict):
+                # Priorität auf geld_date legen!
+                raw_date = (
+                        task_data.get("geld_date")
+                        or task_data.get("gald_date")
+                        or task_data.get("abgabe_date")
+                )
+
+        # Fallback: Falls Einzelabfrage fehlschlägt, alle Tasks durchsuchen
+        if not raw_date:
+            all_tasks_res = requests.get(f"{BASE_URL}/tasks/", timeout=5)
+            if all_tasks_res.status_code == 200 and isinstance(all_tasks_res.json(), list):
+                for t in all_tasks_res.json():
+                    if t.get("id") == task_id:
+                        raw_date = (
+                                t.get("geld_date")
+                                or t.get("gald_date")
+                                or t.get("abgabe_date")
+                        )
+                        break
+
+        # Datum von YYYY-MM-DD auf DD.MM.YYYY formatieren
+        if raw_date:
+            try:
+                clean_date = str(raw_date).split("T")[0].strip()
+                abgabe_str = datetime.strptime(clean_date, "%Y-%m-%d").strftime("%d.%m.%Y")
+            except Exception:
+                abgabe_str = str(raw_date)
+
+        # 2. Benutzer und Kontostände laden
         user_res = requests.get(f"{BASE_URL}/users", timeout=5)
         if user_res.status_code != 200:
-            return None, "Fehler beim Laden der Benutzerliste."
+            return None, "Fehler beim Laden der Benutzerliste.", abgabe_str
 
         users = user_res.json()
         print_dataset = []
@@ -196,9 +237,9 @@ def load_print_data():
 
             print_dataset.append({"user": u, "balance": balance})
 
-        return print_dataset, None
+        return print_dataset, None, abgabe_str
     except Exception as e:
-        return None, f"Verbindung zur API fehlgeschlagen: {e}"
+        return None, f"Verbindung zur API fehlgeschlagen: {e}", "wird bekannt gegeben"
 
 
 st.markdown(
@@ -214,7 +255,7 @@ st.markdown(
 if st.button("🔄 Daten frisch synchronisieren", key="sync_btn"):
     st.rerun()
 
-dataset, error = load_print_data()
+dataset, error, abgabe_termin = load_print_data()
 
 if error:
     st.error(error)
@@ -222,19 +263,20 @@ elif not dataset:
     st.warning("Keine Benutzerdaten verfügbar.")
 else:
     druck_zeitpunkt = datetime.now().strftime("%d.%m.%Y um %H:%M")
-    MOEGLICHE_BETRAEGE = [5, 10, 15, 20]
+    MOEGLICHE_BETRAEGE = [5, 7, 10, 15, 20, 25]
 
     html_gesamt = f"""
 <div class="a4-page">
 <div class="title-header">
 <div class="title-main">Abbuchung Hausgeld</div>
-<div class="title-sub">Gültig für Vorgang #{task_id} | Erstellt am: {druck_zeitpunkt}</div>
+<div class="title-sub">Gültig für Vorgang #{task_id} | Erstellt am: {druck_zeitpunkt}</strong></div>
+<div class="title-sub" style="font-size: 16px">Eintragen bis: <strong>{abgabe_termin}</strong></div>
 </div>
 <table class="user-table">
 <tr>
-<th style="width: 28%;">Name / Kontostand</th>
-<th style="width: 17%;">Buchnummer</th>
-<th style="width: 35%;">Möglicher Abbuchungsbetrag</th>
+<th style="width: 24%;">Name / Kontostand</th>
+<th style="width: 10%;">Buchnummer</th>
+<th style="width: 46%;">Möglicher Abbuchungsbetrag</th>
 <th style="width: 20%;">Unterschrift</th>
 </tr>
 """

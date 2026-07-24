@@ -21,6 +21,15 @@ def get_all_user(db:Session = Depends(get_db)):
     repo = UserRepository(db)
     return repo.find_all_users()
 
+@user_router.get("/kontostaende", response_model=list[UserKontostandRead])
+def get_all_user_kontostaende(db: Session = Depends(get_db)):
+    """
+    Holt alle Benutzer und ermittelt den aktuellsten Kontostand (new_amount)
+    aus der Wallet-Tabelle unabhängig von der task_id.
+    """
+    repo = UserRepository(db)
+    return repo.find_all_users_with_latest_balance()
+
 @user_router.post("/create", response_model = UserRead)
 def create_user(user_create:UserCreate, db:Session = Depends(get_db)):
     repo = UserRepository(db)
@@ -219,11 +228,17 @@ def update_waren(waren_id: int, waren_data: WarenUpdate, db: Session = Depends(g
     return updated_waren
 
 
-@waren_router.delete("/{ware_id}/waren_delete", status_code=status.HTTP_200_OK)
+@waren_router.delete("/{waren_id}/waren_delete", status_code=status.HTTP_200_OK)
 def delete_ware_id(waren_id: int, db: Session = Depends(get_db)):
     repo = WarenRepository(db)
-    deleted_waren = repo.delete_ware(db=db, waren_id=waren_id)
-    return deleted_waren
+    deleted_waren = repo.delete_ware(waren_id=waren_id)
+    # 404 werfen, falls die Ware nicht existiert
+    if not deleted_waren:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Ware mit ID {waren_id} wurde nicht gefunden."
+        )
+    return {"message": f"Ware mit ID {waren_id} wurde erfolgreich gelöscht."}
 
 # -------------
 # Bestellung
@@ -233,10 +248,52 @@ def get_all_bestellung(db: Session = Depends(get_db)):
     repo = BestellungRepository(db)
     return repo.find_all_bestellung()
 
-@bestellung_router.get("/bestellung_task", response_model=list[BestellungRead])
+@bestellung_router.get("/{task_id}/bestellung_task", response_model=list[BestellungRead])
 def get_bestellung_task(task_id: int, db: Session = Depends(get_db)):
     repo = BestellungRepository(db)
     return repo.find_bestellung_by_task(task_id)
+
+'''
+@task_router.get("/{task_id}/shopping_list_beleg")
+def get_shopping_list_beleg(task_id: int, db: Session = Depends(get_db)):
+    task_repo = TaskRepository(db)
+    bestellung_repo = BestellungRepository(db)
+
+    # 1. Bestellungen abrufen
+    bestellungen = bestellung_repo.find_bestellung_by_task(task_id)
+
+    # 2. Prüfen, ob für diese task_id überhaupt Daten existieren
+    if not bestellungen:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Für den Vorgang #{task_id} wurde noch keine Einkaufsliste gefunden.",
+        )
+
+    # 3. Optional den Task laden (ohne Abbruch, falls die Task-ID nur in 'bestellung' existiert)
+    task = task_repo.find_status_betrag_tasks(task_id)
+    created_at = task.date if task else None
+
+    # 4. Artikel aufbereiten
+    items = []
+    for item in bestellungen:
+        items.append(
+            {
+                "bezeichnung": item.bezeichnung,
+                "menge": item.menge,
+                "preis": float(item.preis or 0.0),
+                "gesamt_preis": float(item.gesamt_preis or 0.0),
+                "einheit": getattr(item, "einheit", "Stk."),
+            }
+        )
+
+    return {
+        "task": {
+            "id": task_id,
+            "created_at": created_at,
+        },
+        "items": items,
+    }
+'''
 
 @bestellung_router.post("/save", response_model=BestellungRead)  # Pfad
 def create_new_bestellung(bestellung_create: BestellungCreate, db: Session = Depends(get_db)):

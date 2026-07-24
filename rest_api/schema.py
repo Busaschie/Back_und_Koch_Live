@@ -66,6 +66,17 @@ class UserRead(UserBase):
 class UserCreate(UserBase):
     pass
 
+class UserKontostandRead(BaseModel):
+    id: int
+    vorname: str
+    nachname: str
+    buchnummer: str
+    zimmer_nr: int
+    aktueller_kontostand: float
+
+    class Config:
+        from_attributes = True
+
 #-----------------------------------------------
 # Waren
 #-----------------------------------------------

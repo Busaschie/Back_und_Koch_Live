@@ -8,6 +8,26 @@ BASE_URL = "http://localhost:8000"
 # Seite auf weites Layout stellen
 st.set_page_config(layout="wide")
 
+# CSS zum Anpassen der Farbe des "Neuer Artikel"-Buttons
+st.markdown(
+    """
+    <style>
+    /* Passt nur den Primary-Button an */
+    div.stButton > button[kind="primary"] {
+        background-color: #41ad5a !important; /* Hier deine Wunschfarbe (z. B. Grün) */
+        color: white !important;               /* Textfarbe */
+        border-color: #28a745 !important;
+    }
+    /* Hover-Effekt (wenn man mit der Maus drüber fährt) */
+    div.stButton > button[kind="primary"]:hover {
+        background-color: #218838 !important;
+        border-color: #1e7e34 !important;
+    }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
+
 # ==========================================
 # 0. SESSION STATE INITIALISIERUNG
 # ==========================================
@@ -58,6 +78,9 @@ with col_links:
             st.session_state.selected_waren_id = None  # Auswahl zurücksetzen
             st.rerun()
 
+        if st.button("📦 Warenliste drucken", type="secondary", use_container_width=True):
+            st.switch_page("pages/waren_druck.py")
+
         st.write("---")
 
         if df_waren.empty:
@@ -68,7 +91,7 @@ with col_links:
 
             for kat in kategorien:
                 # Jede Kategorie bekommt einen eigenen Expander links
-                with st.expander(f"📂 {str(kat).upper()}", expanded=True):
+                with st.expander(f"📂 {str(kat).upper()}", expanded=False):
                     df_kat = df_waren[df_waren["kategorie"] == kat]
 
                     # Einzelne Artikel als klickbare Buttons listen
@@ -207,11 +230,7 @@ with col_rechts:
                     clean_id = int(w_id)
 
                     response = requests.delete(
-                        f"{BASE_URL}/waren/{clean_id}/waren_delete",
-                        params={"waren_id": clean_id},
-                        timeout=5
-                    )
-
+                        f"{BASE_URL}/waren/{clean_id}/waren_delete", params={"waren_id": clean_id}, timeout=5)
                     if response.status_code in [200, 204]:
                         st.success("🔥 Artikel erfolgreich gelöscht!")
                         st.session_state.selected_waren_id = None

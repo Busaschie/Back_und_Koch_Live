@@ -12,13 +12,15 @@ task_id = st.session_state.get("print_task_id")
 if task_id:
     task_id = int(task_id)
 else:
-    st.error(
-        "Keine aktive Vorgangs-ID gefunden! Bitte wähle zuerst auf der"
-        " Hauptseite einen Vorgang aus."
-    )
-    if st.button("🔙 Zurück zur Hauptseite"):
-        st.switch_page("main.py")
-    st.stop()
+    task_id = 1
+#else:
+#    st.error(
+#        "Keine aktive Vorgangs-ID gefunden! Bitte wähle zuerst auf der"
+#        " Hauptseite einen Vorgang aus."
+#    )
+#    if st.button("🔙 Zurück zur Hauptseite"):
+#        st.switch_page("main.py")
+#    st.stop()
 
 
 # --- CSS für zweispaltiges A4-Drucklayout & Ausblenden der Navigation ---

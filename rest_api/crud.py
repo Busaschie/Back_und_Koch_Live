@@ -1,3 +1,4 @@
+from sqlalchemy import func
 from models import User, Admin, Wallet, Task, Waren, Bestellung
 from sqlalchemy.orm import Session
 from schema import WarenUpdate, WarenCreate, UserBase
@@ -144,16 +145,56 @@ class UserRepository():
             # 2. Alle Wallet-Einträge mit dieser Buchnummer löschen
             # (Importiere das Wallet-Modell, falls noch nicht geschehen, z.B. aus deiner models.py)
             self.session.query(Wallet).filter(Wallet.buchnummer == buchnummer).delete(synchronize_session=False)
-
             # 3. Den User selbst löschen
             self.session.delete(db_user)
-
             # 4. Änderungen in der DB festschreiben
             self.session.commit()
             return True
         except Exception as e:
             self.session.rollback()
             raise e
+
+
+    def find_all_users_with_latest_balance(self):
+        # 1. Subquery: Höchste Wallet-ID je Buchnummer finden (über alle Tasks hinweg)
+        sub_stmt = (
+            self.session.query(
+                Wallet.buchnummer,
+                func.max(Wallet.id).label("max_wallet_id")
+            )
+            .group_by(Wallet.buchnummer)
+            .subquery()
+        )
+
+        # 2. Main Query: User per LEFT JOIN mit Subquery und Wallet verknüpfen
+        results = (
+            self.session.query(
+                User.id.label("user_id"),
+                User.vorname,
+                User.nachname,
+                User.buchnummer,
+                User.zimmer_nr,
+                func.coalesce(Wallet.new_amount, 0.0).label("aktueller_kontostand")
+            )
+            .outerjoin(sub_stmt, User.buchnummer == sub_stmt.c.buchnummer)
+            .outerjoin(Wallet, Wallet.id == sub_stmt.c.max_wallet_id)
+            .order_by(User.nachname.asc(), User.vorname.asc())
+            .all()
+        )
+
+        # WICHTIG: Die Rows explizit als Dictionary mappen, damit Pydantic / FastAPI
+        # die Schlüssel 'vorname', 'nachname', 'buchnummer' etc. erkennt!
+        return [
+            {
+                "id": row.user_id,
+                "vorname": row.vorname,
+                "nachname": row.nachname,
+                "buchnummer": row.buchnummer,
+                "zimmer_nr": row.zimmer_nr,
+                "aktueller_kontostand": float(row.aktueller_kontostand),
+            }
+            for row in results
+        ]
 
 # ----------------------
 # Wallet
@@ -218,20 +259,17 @@ class WarenRepository():
         self.session.refresh(db_waren)
         return db_waren
 
-    def delete_ware(self, waren_id: int) -> Waren:
-        # 1. Eintrag in der DB suchen
-        db_ware = self.session.query(Waren).filter(Waren.id == waren_id).first()
-        # 2. Fehler werfen, falls nicht vorhanden
-        if not db_ware:
+    def delete_ware(self, waren_id: int) -> Waren | None:
+        db_waren = self.session.query(Waren).filter(Waren.id == waren_id).first()
+        if not db_waren:
             return None
-        # 3. Löschen und speichern
         try:
-            db.delete(db_ware)
-            db.commit()
-        except Exception as e:
-            db.rollback()
+            self.session.delete(db_waren)
+            self.session.commit()
+            return db_waren  # Das Objekt im Speicher zurückgeben (OHNE refresh!)
+        except Exception:
+            self.session.rollback()
             return None
-        return {"message": f"Ware mit der ID {waren_id} wurde erfolgreich gelöscht."}
 
 # ----------------------
 # Bestellung

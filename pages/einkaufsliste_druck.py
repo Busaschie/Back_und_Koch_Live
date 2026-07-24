@@ -1,6 +1,8 @@
+from datetime import datetime
 import pandas as pd
 import requests
 import streamlit as st
+
 
 BASE_URL = "http://localhost:8000"
 
@@ -190,18 +192,39 @@ st.markdown(
 
 def load_data():
     try:
-        # Korrigierter Endpunkt: /shopping_list_beleg
+        # Aufruf des funktionierenden Router-Endpunkts mit task_id als Query-Parameter
         res = requests.get(
-            f"{BASE_URL}/tasks/{task_id}/shopping_list_beleg", timeout=5
+            f"{BASE_URL}/bestellung/{task_id}/bestellung_task",
+            params={"task_id": task_id},
+            timeout=5,
         )
+
         if res.status_code == 200:
-            return res.json(), None
+            items = res.json()
+            if not items:
+                return (
+                    None,
+                    f"Für den Vorgang #{task_id} wurde noch keine Einkaufsliste"
+                    " gefunden.",
+                )
+
+            # Aufbereitung in das vom Druck-Template erwartete Datenformat
+            data = {
+                "task": {
+                    "id": task_id,
+                    "created_at": None,
+                },
+                "items": items,
+            }
+            return data, None
+
         elif res.status_code == 404:
             return (
                 None,
                 f"Für den Vorgang #{task_id} wurde noch keine Einkaufsliste"
                 " gefunden.",
             )
+
         return (
             None,
             f"Fehler beim Laden der Einkaufsliste (Status: {res.status_code})",
@@ -220,16 +243,8 @@ else:
     task_info = data.get("task", {})
     items = data.get("items", [])
 
-    created_at = task_info.get("created_at", "")
-    if created_at:
-        try:
-            created_at_fmt = pd.to_datetime(created_at).strftime(
-                "%d.%m.%Y %H:%M"
-            )
-        except Exception:
-            created_at_fmt = created_at
-    else:
-        created_at_fmt = "Unbekannt"
+    created_ti = datetime.now()
+    created_at_fmt = created_ti.strftime("%d.%m.%Y / %H:%M")
 
     df_items = pd.DataFrame(items)
 
@@ -242,7 +257,7 @@ else:
                     <div class="header-sub">Vorgang #{task_id} | Erstellt am: {created_at_fmt}</div>
                 </td>
                 <td style="text-align: right; vertical-align: bottom;">
-                    <div style="font-size: 12px; font-weight: bold;">Status: Offen / In Bearbeitung</div>
+                    <div style="font-size: 12px; font-weight: bold;">Viel Spaß beim Einkaufen!</div>
                 </td>
             </tr>
         </table>
@@ -284,26 +299,26 @@ else:
             html_content += f"""
             <tr>
                 <td class="col-stueck">{menge}</td>
-                <td class="col-leer1">___</td>
-                <td class="col-leer2">___</td>
+                <td class="col-leer1">   </td>
+                <td class="col-leer2">   </td>
                 <td class="col-bezeichnung">{bezeichnung}</td>
                 <td class="col-einheit">{einheit}</td>
                 <td class="col-ep">{preis:,.2f} €</td>
                 <td class="col-gp">{gesamt:,.2f} €</td>
-                <td class="col-korrektur">€</td>
+                <td class="col-korrektur">   </td>
             </tr>
             """
 
         html_content += f"""
             <tr class="total-row">
                 <td class="col-stueck">{gesamt_artikel}</td>
-                <td class="col-leer1">___</td>
-                <td class="col-leer2">___</td>
+                <td class="col-leer1">   </td>
+                <td class="col-leer2">   </td>
                 <td class="col-bezeichnung">Bestellung Gesamt</td>
                 <td class="col-einheit"></td>
                 <td class="col-ep"></td>
                 <td class="col-gp">{gesamtsumme:,.2f} €</td>
-                <td class="col-korrektur">€</td>
+                <td class="col-korrektur">   </td>
             </tr>
         """
 

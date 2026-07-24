@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 import pandas as pd
 import requests
 import streamlit as st
@@ -16,6 +16,16 @@ def format_buchnummer(val):
         return f"{val_str[:-4]}/{val_str[-4:]}"
     return val_str
 
+def format_de_datum(val):
+    if not val:
+        return "kein Datum"
+    if isinstance(val, (datetime, date)):
+        return val.strftime("%d.%m.%Y")
+    try:
+        clean_str = str(val).split("T")[0].strip()
+        return datetime.strptime(clean_str, "%Y-%m-%d").strftime("%d.%m.%Y")
+    except Exception:
+        return str(val)
 
 # Seite auf weites Layout stellen
 st.set_page_config(layout="wide")
@@ -169,7 +179,8 @@ with col_links:
 # --- RECHTE SEITE ---
 with col_rechts:
     with st.container(border=True):
-        st.subheader(f"Bestellvorgang (Ausgewählt: {st.session_state.selected_date})")
+        formatted_date = format_de_datum(st.session_state.get("selected_date"))
+        st.subheader(f"Bestellvorgang (Ausgewählt: {formatted_date})")
 
         # --- SCHRITT 1 ---
         with st.expander("Schritt 1: Vorgangs-Informationen festlegen", expanded=True):
@@ -183,9 +194,9 @@ with col_rechts:
                         monat = st.selectbox("Monat",
                                              options=["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli",
                                                       "August", "September", "Oktober", "November", "Dezember"])
-                    shop_date = st.date_input("Shop-Datum (shop_date)")
-                    abgabe_date = st.date_input("Abgabetermin (abgabe_date)")
-                    geld_date = st.date_input("Geld erhalten am (geld_date)")
+                    shop_date = st.date_input("Einkaufs-Datum")
+                    abgabe_date = st.date_input("Bestellung abgeben bis ")
+                    geld_date = st.date_input("Geld eintragen bis")
 
                     col_btn_save, col_btn_cancel = st.columns([1, 1])
                     with col_btn_save:
@@ -226,7 +237,7 @@ with col_rechts:
                         "monat": st.column_config.TextColumn("MONAT"),
                         "jahr": st.column_config.TextColumn("JAHR"),
                         "shop_date": st.column_config.DateColumn("SHOP DATE", format="DD.MM.YYYY"),
-                        "abgabe_date": st.column_config.DateColumn("ABGABE DATE", format="DD.MM.YYYY"),
+                        "abgabe_date": st.column_config.DateColumn("BESTELLUNG DATE", format="DD.MM.YYYY"),
                         "geld_date": st.column_config.DateColumn("GELD DATE", format="DD.MM.YYYY"),
                     }
                 )
@@ -287,7 +298,7 @@ with col_rechts:
                     "buchnummer": st.column_config.TextColumn("BUCHNUMMER"),
                     "betrag": st.column_config.SelectboxColumn(
                         "BETRAG", help="Betrag des Nutzers", width="medium",
-                        options=["Bitte wählen...", "0", "7", "13", "15", "25"], required=True,
+                        options=["Bitte wählen...", "5", "7", "10", "15", "20", "25"], required=True,
                     )
                 }
 
@@ -375,10 +386,7 @@ with col_rechts:
         with st.expander("Schritt 3: Einkaufsliste", expanded=False):
             aktives_datum = st.session_state.selected_date
 
-            if f"bestellung_saved_{aktives_datum}" not in st.session_state:
-                st.session_state[f"bestellung_saved_{aktives_datum}"] = False
-                st.session_state[f"bestellung_anzahl_{aktives_datum}"] = 0
-
+            # Waren aus Session oder API laden
             if "global_waren" not in st.session_state or st.session_state.global_waren is None:
                 try:
                     waren_response = requests.get(f"{BASE_URL}/waren", timeout=5)
@@ -398,24 +406,61 @@ with col_rechts:
                 st.warning(
                     "Bitte wähle zuerst links einen gültigen Einkaufsvorgang aus (Schritt 1), um fortzufahren.")
             else:
+                # 1. STATUS 'status_waren' UND BESTELLUNGEN AUS DER DB ABFRAGEN
+                db_status_waren = "OPEN"
+                bestellte_artikel_anzahl = 0
+                gespeicherte_bestellungen = []
+
+                try:
+                    # Status des Tasks abrufen
+                    task_res = requests.get(f"{BASE_URL}/tasks/{aktuelle_task_id}/status_betrag", timeout=5)
+                    if task_res.status_code == 200:
+                        task_data = task_res.json()
+                        db_status_waren = str(task_data.get("status_waren", "OPEN")).upper()
+
+                    # Bestellungen für den Task abrufen
+                    bestellung_res = requests.get(
+                        f"{BASE_URL}/bestellung/{aktuelle_task_id}/bestellung_task",
+                        timeout=5
+                    )
+                    if bestellung_res.status_code == 200:
+                        data_best = bestellung_res.json()
+                        if isinstance(data_best, list):
+                            gespeicherte_bestellungen = data_best
+                            bestellte_artikel_anzahl = len(gespeicherte_bestellungen)
+                except Exception as e:
+                    st.warning(f"Konnte Status/Bestellungen nicht abfragen: {e}")
+
+                # 2. STATUS-LOGIK (OPEN vs. DONE)
+                ist_status_done = (db_status_waren == "DONE")
+
                 df_waren = df_waren.sort_values(by="kategorie")
-                if "bestellmenge" not in df_waren.columns:
-                    df_waren["bestellmenge"] = 0
 
-                ist_bestellt_gespeichert = st.session_state[f"bestellung_saved_{aktives_datum}"]
+                # Map für die gespeicherten Mengen erstellen (Bezeichnung -> Menge)
+                mengen_map = {}
+                if gespeicherte_bestellungen:
+                    for b in gespeicherte_bestellungen:
+                        bezeichnung = b.get("bezeichnung")
+                        menge = b.get("menge", 0)
+                        if bezeichnung:
+                            mengen_map[bezeichnung] = menge
 
-                if ist_bestellt_gespeichert:
+                # Spalte 'bestellmenge' befüllen: Bei DONE die echten Werte aus der DB verwenden
+                if ist_status_done:
+                    df_waren["bestellmenge"] = df_waren["bezeichnung"].map(mengen_map).fillna(0).astype(int)
                     disabled_spalten_waren = ["bezeichnung", "menge", "art", "preis", "bestellmenge"]
                     button_deaktiviert_bestellung = True
-                    button_text_bestellung = "🔒 Bestellung gespeichert"
+                    button_text_bestellung = f"🔒 Bestellung gespeichert ({bestellte_artikel_anzahl} Artikel)"
 
-                    anzahl_artikel = st.session_state[f"bestellung_anzahl_{aktives_datum}"]
-                    st.info(f"📦 Für diesen Vorgang wurden bereits {anzahl_artikel} Artikel bestellt.")
+                    st.info(
+                        f"📦 Status: DONE. Für diesen Vorgang wurden bereits {bestellte_artikel_anzahl} Artikel in der Datenbank gespeichert.")
                 else:
+                    df_waren["bestellmenge"] = 0
                     disabled_spalten_waren = ["bezeichnung", "menge", "art", "preis"]
                     button_deaktiviert_bestellung = False
-                    button_text_bestellung = "🛒 Bestellung speichern"
+                    button_text_bestellung = "🛒 Bestellung speichern & abschließen"
 
+                # 3. FORMULAR UND EDITOREN ANZEIGEN
                 kategorie_edits = {}
                 einzigartige_kategorien = df_waren["kategorie"].unique()
 
@@ -429,22 +474,32 @@ with col_rechts:
                                 "bezeichnung": st.column_config.TextColumn("BEZEICHNUNG", disabled=True),
                                 "menge": st.column_config.NumberColumn("VORHANDENE MENGE", disabled=True),
                                 "art": st.column_config.TextColumn("ART", disabled=True),
-                                "preis": st.column_config.NumberColumn("PREIS (€)", format="%.2f €", disabled=True),
+                                "preis": st.column_config.NumberColumn("PREIS (€)", format="%.2f €",
+                                                                       disabled=True),
                                 "bestellmenge": st.column_config.NumberColumn("BESTELLMENGE", min_value=0,
-                                                                              max_value=1000, step=1, required=True),
+                                                                              max_value=1000, step=1,
+                                                                              required=True),
                                 "id": None,
                                 "kategorie": None,
                             }
-                            edited_df = st.data_editor(df_kat, column_config=spalten_konfig_waren, hide_index=True,
-                                                       disabled=disabled_spalten_waren,
-                                                       width="stretch", key=f"editor_{kat}_{aktives_datum}")
+                            edited_df = st.data_editor(
+                                df_kat,
+                                column_config=spalten_konfig_waren,
+                                hide_index=True,
+                                disabled=disabled_spalten_waren,
+                                width="stretch",
+                                key=f"editor_{kat}_{aktives_datum}_{aktuelle_task_id}_{db_status_waren}"
+                            )
                             kategorie_edits[kat] = edited_df
 
                     st.write("---")
 
-                    submitted_bestellung = st.form_submit_button(button_text_bestellung,
-                                                                 type="primary", use_container_width=True,
-                                                                 disabled=button_deaktiviert_bestellung)
+                    submitted_bestellung = st.form_submit_button(
+                        button_text_bestellung,
+                        type="primary",
+                        use_container_width=True,
+                        disabled=button_deaktiviert_bestellung
+                    )
 
                 # Native Streamlit Druck-Buttons (AUSSERHALB DES FORMULARS!)
                 st.write("")
@@ -459,6 +514,7 @@ with col_rechts:
                     else:
                         st.button("🛒 Wareneinkauf Beleg", disabled=True, use_container_width=True)
 
+                # 4. SPEICHER-AKTION
                 if submitted_bestellung:
                     alle_bestellungen = []
                     for kat, df_edited in kategorie_edits.items():
@@ -500,10 +556,19 @@ with col_rechts:
                                     f"❌ '{row['bezeichnung']}': Verbindung fehlgeschlagen: {str(e)}")
 
                         if erfolgreich > 0:
-                            st.session_state[f"bestellung_saved_{aktives_datum}"] = True
-                            st.session_state[f"bestellung_anzahl_{aktives_datum}"] = erfolgreich
-                            st.success(
-                                f"🎉 {erfolgreich} Artikel erfolgreich für den Vorgang (ID: {aktuelle_task_id}) gespeichert!")
+                            # Status in DB auf DONE setzen
+                            try:
+                                status_url = f"{BASE_URL}/tasks/{aktuelle_task_id}/update_status_waren"
+                                status_response = requests.put(status_url, params={"new_state": "DONE"},
+                                                               timeout=5)
+                                if status_response.status_code in [200, 201]:
+                                    st.success(
+                                        f"🎉 {erfolgreich} Artikel gespeichert und Status auf DONE gesetzt!")
+                                else:
+                                    st.warning(
+                                        f"Bestellung gesichert, aber Status-Update fehlgeschlagen: {status_response.text}")
+                            except Exception as e:
+                                st.warning(f"Fehler bei der Verbindung zum Status-Update: {e}")
 
                         if fehler_details:
                             st.error("⚠️ Folgende Artikel konnten nicht gespeichert werden:")
@@ -584,10 +649,10 @@ with col_rechts:
             with col_s4_2:
                 if aktuelle_task_id is not None:
                     st.session_state.print_task_id = aktuelle_task_id
-                    if st.button("🖨️ Abbuchungsbeleg drucken", type="secondary", use_container_width=True):
+                    if st.button("🖨️ Kontostand drucken", type="secondary", use_container_width=True):
                         st.switch_page("pages/userkonto_druck.py")
                 else:
-                    st.button("🖨️ Abbuchungsbeleg drucken", disabled=True, use_container_width=True)
+                    st.button("🖨️ Kontostand der User drucken", disabled=True, use_container_width=True)
 
             if submitted_4:
                 gueltige_abbuchungen = df_editiert_4[df_editiert_4["abbuchung"] > 0.0]

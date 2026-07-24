@@ -64,6 +64,25 @@ def load_wallets_by_buchnummer(buchnummer: str):
         st.warning(f"Fehler beim Laden der Wallet-Daten: {e}")
     return pd.DataFrame()
 
+# CSS zum Anpassen der Farbe des "Neuer Artikel"-Buttons
+st.markdown(
+    """
+    <style>
+    /* Passt nur den Primary-Button an */
+    div.stButton > button[kind="primary"] {
+        background-color: #41ad5a !important; /* Hier deine Wunschfarbe (z. B. Grün) */
+        color: white !important;               /* Textfarbe */
+        border-color: #28a745 !important;
+    }
+    /* Hover-Effekt (wenn man mit der Maus drüber fährt) */
+    div.stButton > button[kind="primary"]:hover {
+        background-color: #218838 !important;
+        border-color: #1e7e34 !important;
+    }
+    </style>
+""",
+    unsafe_allow_html=True,
+)
 
 # User initial oder bei Bedarf laden
 if st.session_state.users_list is None:
@@ -76,7 +95,7 @@ df_users = st.session_state.users_list
 # ==========================================
 col_links, col_rechts = st.columns([3, 7])
 
-# --- LINKE SEITE: User-Auswahlliste & "Neuer User" ---
+# --- LINKE SEITE: User-Auswahlliste & Buttons ---
 with col_links:
     with st.container(border=True):
         st.subheader("👥 Benutzerverwaltung")
@@ -92,6 +111,10 @@ with col_links:
                 del st.session_state["user_select_table"]
 
             st.rerun()
+
+        # NEUER GRÜNER BUTTON ZUM DRUCKEN DER KONTOSTÄNDE
+        if st.button("🖨️ Kontostände drucken", width="stretch", type="secondary"):
+            st.switch_page("pages/userkonto_druck.py")
 
         st.write("---")
 

@@ -190,17 +190,46 @@ st.markdown(
 def load_print_data():
     try:
         abgabe_str = "wird bekannt gegeben"
-        task_res = requests.get(f"{BASE_URL}/tasks/open", timeout=5)
-        if task_res.status_code == 200 and task_res.json():
-            open_task = task_res.json()[0]
-            if "abgabe_date" in open_task and open_task["abgabe_date"]:
-                try:
-                    abgabe_str = datetime.strptime(
-                        open_task["abgabe_date"], "%Y-%m-%d"
-                    ).strftime("%d.%m.%Y")
-                except Exception:
-                    abgabe_str = str(open_task["abgabe_date"])
 
+        # 1. Gezielte Abfrage der ausgewählten task_id
+        task_res = requests.get(f"{BASE_URL}/tasks/{task_id}", timeout=5)
+
+        if task_res.status_code == 200 and task_res.json():
+            task_data = task_res.json()
+
+            # Falls die API eine Liste mit 1 Element zurückgibt
+            if isinstance(task_data, list) and len(task_data) > 0:
+                task_data = task_data[0]
+
+            # Suche nach allen gängigen Feldnamen für das Datum
+            raw_date = (
+                    task_data.get("abgabe_date")
+                    or task_data.get("abgabedatum")
+                    or task_data.get("due_date")
+            )
+
+            if raw_date:
+                try:
+                    # ISO-Datum (YYYY-MM-DD oder YYYY-MM-DDT...) umwandeln
+                    clean_date_str = str(raw_date).split("T")[0].strip()
+                    abgabe_str = datetime.strptime(clean_date_str, "%Y-%m-%d").strftime("%d.%m.%Y")
+                except Exception:
+                    abgabe_str = str(raw_date)
+
+        # Fallback: Falls GET /tasks/{task_id} fehlschlägt, alle Tasks holen & filtern
+        else:
+            all_tasks_res = requests.get(f"{BASE_URL}/tasks/", timeout=5)
+            if all_tasks_res.status_code == 200:
+                tasks_list = all_tasks_res.json()
+                for t in tasks_list:
+                    if t.get("id") == task_id:
+                        raw_date = t.get("abgabe_date") or t.get("abgabedatum")
+                        if raw_date:
+                            clean_date_str = str(raw_date).split("T")[0].strip()
+                            abgabe_str = datetime.strptime(clean_date_str, "%Y-%m-%d").strftime("%d.%m.%Y")
+                        break
+
+        # 2. Benutzer und Wallets laden
         user_res = requests.get(f"{BASE_URL}/users", timeout=5)
         if user_res.status_code != 200:
             return None, "Fehler beim Laden der Benutzerliste."
@@ -313,7 +342,7 @@ else:
 
         html_gesamt += f"""
 </table>
-<div style="margin-top: 10px; font-size: 12px; font-weight: bold;">
+<div style="margin-top: 10px; font-size: 15px; font-weight: bold;">
 Abgabetermin ist der <span style="text-decoration: underline;">{abgabe_termin}</span>*
 </div>
 <div class="section-title" style="margin-top: 10px;">Hier Bitte die Ware eintragen**:</div>

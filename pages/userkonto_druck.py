@@ -7,18 +7,10 @@ BASE_URL = "http://localhost:8000"
 
 st.set_page_config(layout="wide", page_title="Gesamtübersicht Kontostände")
 
+# task_id holen (falls vorhanden)
 task_id = st.session_state.get("print_task_id")
-
 if task_id:
     task_id = int(task_id)
-else:
-    st.error(
-        "Keine aktive Vorgangs-ID gefunden! Bitte wähle zuerst auf der"
-        " Hauptseite einen Vorgang aus."
-    )
-    if st.button("🔙 Zurück zur Hauptseite"):
-        st.switch_page("main.py")
-    st.stop()
 
 
 def format_buchnummer(val):
@@ -158,46 +150,36 @@ st.markdown(
 
 def load_print_data():
     try:
-        user_res = requests.get(f"{BASE_URL}/users", timeout=5)
-        if user_res.status_code != 200:
-            return None, "Fehler beim Laden der Benutzerliste."
+        # 1. DIREKTE ABFRAGE DES NEUEN ENDPUNKTS (Holt User + neuste Wallet-Einträge)
+        res = requests.get(f"{BASE_URL}/users/kontostaende", timeout=5)
+        if res.status_code != 200:
+            return None, f"Fehler beim Laden der Kontostände: {res.text}"
 
-        users = user_res.json()
+        users_kontostaende = res.json()
         print_dataset = []
         gesamt_kontostand = 0.0
 
-        for u in users:
-            wallet_res = requests.get(
-                f"{BASE_URL}/wallets/wallet_user",
-                params={"buchnummer": u["buchnummer"]},
-                timeout=5,
-            )
-            wallets = wallet_res.json() if wallet_res.status_code == 200 else []
-
-            balance = 0.0
-            if wallets:
-                df_w = pd.DataFrame(wallets)
-                if not df_w.empty and "date" in df_w.columns:
-                    df_w = df_w.sort_values(by="date", ascending=False)
-                    balance = float(df_w.iloc[0]["new_amount"])
-
+        for u in users_kontostaende:
+            balance = float(u.get("aktueller_kontostand", 0.0))
             gesamt_kontostand += balance
+
             print_dataset.append({
-                "buchnummer": u["buchnummer"],
-                "name": f"{u['vorname']} {u['nachname']}",
+                "buchnummer": u.get("buchnummer", ""),
+                "name": f"{u.get('vorname', '')} {u.get('nachname', '')}".strip(),
                 "balance": balance,
             })
 
-        # Auszahlungswert für den Einkauf ermitteln
+        # 2. Auszahlungswert für den Einkauf ermitteln (falls task_id existiert)
         einkauf_aktuell = 0.0
-        shopping_res = requests.get(
-            f"{BASE_URL}/tasks/{task_id}/shopping_list", timeout=5
-        )
-        if shopping_res.status_code == 200:
-            s_data = shopping_res.json()
-            items = s_data.get("items", [])
-            for itm in items:
-                einkauf_aktuell += float(itm.get("gesamt_preis", 0.0))
+        if task_id:
+            bestellung_res = requests.get(
+                f"{BASE_URL}/bestellung/{task_id}/bestellung_task", timeout=5
+            )
+            if bestellung_res.status_code == 200:
+                items = bestellung_res.json()
+                if isinstance(items, list):
+                    for itm in items:
+                        einkauf_aktuell += float(itm.get("gesamt_preis", 0.0))
 
         ueberschuss = gesamt_kontostand - einkauf_aktuell
 
@@ -207,14 +189,18 @@ def load_print_data():
             "einkauf_aktuell": einkauf_aktuell,
             "ueberschuss": ueberschuss,
         }, None
+
     except Exception as e:
         return None, f"Verbindung zur API fehlgeschlagen: {e}"
 
 
+# --- HEADERAUSGABE ---
+vorgang_text = f"Vorgang #{task_id}" if task_id else "Gesamtübersicht"
+
 st.markdown(
     f"""
     <div class="no-print" style="background-color: #e8f4f8; padding: 12px; border-radius: 6px; margin-bottom: 15px;">
-        <h4 style="margin:0; color: #1e3d59;">🖨️ Kontostände Übersicht (Vorgang #{task_id})</h4>
+        <h4 style="margin:0; color: #1e3d59;">🖨️ Kontostände Übersicht ({vorgang_text})</h4>
         <p style="margin: 5px 0 0 0; font-size: 13px;">💡 Drücke <code>STRG + P</code> zum Drucken.</p>
     </div>
 """,
@@ -237,7 +223,7 @@ else:
 <div class="a4-page">
 <div class="title-header">
 <div class="title-main">Gesamtübersicht Kontostände</div>
-<div class="title-sub">Vorgangs-ID #{task_id} | Stichtag: {druck_zeitpunkt}</div>
+<div class="title-sub">{vorgang_text} | Stichtag: {druck_zeitpunkt}</div>
 </div>
 
 <table class="summary-table">
@@ -272,6 +258,10 @@ else:
 <span>Aktueller Kontostand (Gesamt):</span>
 <span>{gesamt_str}</span>
 </div>
+"""
+
+    if task_id:
+        html_gesamt += f"""
 <div class="summary-line">
 <span>Bar ausgezahlt für aktuellen Einkauf (Warenwert):</span>
 <span>{einkauf_str}</span>
@@ -280,6 +270,9 @@ else:
 <span>Verbleibender Überschuss / Restsaldo:</span>
 <span>{ueberschuss_str}</span>
 </div>
+"""
+
+    html_gesamt += """
 </div>
 </div>
 """
