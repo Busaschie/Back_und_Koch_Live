@@ -1,5 +1,5 @@
 from database import Base
-from sqlalchemy import Column, Integer, String, ForeignKey, Text, Date, Enum, func
+from sqlalchemy import Column, Integer, String, Date, Enum, func
 #from datetime import datetime
 #from sqlalchemy.orm import relationship
 
@@ -23,6 +23,7 @@ class Wallet(Base,BaseRepr):
      old_amount = Column(Integer)
      new_amount = Column(Integer)
      task_id = Column(Integer)
+     schritt = Column(String(15))
      betrag = Column(Integer)
      buchnummer = Column(String(10))
 
@@ -43,8 +44,8 @@ class User(Base,BaseRepr):
     buchnummer = Column(String(10))
 
 #
-class Task(Base,BaseRepr):
-    __tablename__ = "task"
+class Task(Base, BaseRepr):
+    __tablename__ = "task"  # <-- WICHTIG: Überall "task" verwenden!
     id = Column(Integer, primary_key=True)
     date = Column(Date, server_default=func.now())
     monat = Column(String(50))
@@ -52,9 +53,25 @@ class Task(Base,BaseRepr):
     shop_date = Column(Date)
     abgabe_date = Column(Date)
     geld_date = Column(Date)
-    status_betrag = Column(Enum("OPEN", "DONE"), nullable=False, default="OPEN")
-    status_waren = Column(Enum("OPEN", "DONE"), nullable=False, default="OPEN")
-    status_buchung = Column(Enum("OPEN", "DONE"), nullable=False, default="OPEN")
+    # server_default ergänzen für maximale DB-Sicherheit:
+    status_betrag = Column(
+        Enum("OPEN", "DONE", name="task_status"),
+        nullable=False,
+        default="OPEN",
+        server_default="OPEN"
+    )
+    status_waren = Column(
+        Enum("OPEN", "DONE", name="task_status"),
+        nullable=False,
+        default="OPEN",
+        server_default="OPEN"
+    )
+    status_buchung = Column(
+        Enum("OPEN", "DONE", name="task_status"),
+        nullable=False,
+        default="OPEN",
+        server_default="OPEN"
+    )
 
 #
 class Waren(Base, BaseRepr):
@@ -72,6 +89,8 @@ class Bestellung(Base, BaseRepr):
     id = Column(Integer, primary_key=True)
     bezeichnung = Column(String(250))
     menge = Column(Integer)
+    art = Column(String(20))
+    bestellmenge = Column(Integer)
     preis = Column(Integer)
     gesamt_preis = Column(Integer)
     task_id = Column(Integer)

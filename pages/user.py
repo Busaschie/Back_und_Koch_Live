@@ -414,13 +414,15 @@ with col_rechts:
                             new_amount = old_amount + betrag_final
 
                             wallet_payload = {
-                                "task_id": 0,
-                                "buchnummer": rohe_buchnummer,
-                                "betrag": betrag_final,
-                                "old_amount": old_amount,
-                                "new_amount": new_amount,
                                 "grund": grund_eingabe.strip(),
                                 "date": str(date.today()),
+                                "grund": grund_eingabe.strip(),
+                                "old_amount": old_amount,
+                                "new_amount": new_amount,
+                                "task_id": 0,
+                                "schritt": "manuell",
+                                "betrag": betrag_final,
+                                "buchnummer": rohe_buchnummer,
                             }
 
                             try:

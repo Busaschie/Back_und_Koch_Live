@@ -154,11 +154,15 @@ def get_open_task(db: Session = Depends(get_db)):
     return repo.find_open_tasks()
 
 #@task_router.post("/", response_model = TaskRead) # Query
-@task_router.post("/save", response_model = TaskRead) # Pfad
-def create_new_task(task_create:TaskCreate, db:Session = Depends(get_db)):
+@task_router.post("/save", response_model=TaskRead)
+def create_new_task(task_create: TaskCreate, db: Session = Depends(get_db)):
     repo = TaskRepository(db)
-    new_task = Task(**task_create.model_dump()) # konverieren TaskCreate to Task (DB) / model_dump() -> dict
-    #new_task = Task(date = task_create.date, monat = task_create.monat, jahr = task_create.jahr, shop_date = task_create.shop_date, abgabe_date = task_create.abgabe_date, geld_date = task_create.geld_date, status = TaskStatus.OPEN)
+    task_data = task_create.model_dump()
+    # Sicherstellen, dass die Status-Felder im Dict existieren
+    task_data.setdefault("status_betrag", "OPEN")
+    task_data.setdefault("status_waren", "OPEN")
+    task_data.setdefault("status_buchung", "OPEN")
+    new_task = Task(**task_data)
     return repo.create_task(new_task)
 
 #-------------
@@ -169,15 +173,15 @@ def get_all_wallet(db:Session = Depends(get_db)):
     repo = WalletRepository(db)
     return repo.find_all_wallets()
 
-@wallet_router.get("/wallet_user", response_model = list[WalletRead])
+@wallet_router.get("/wallet_user", response_model = list[WalletBaseUser])
 def get_wallet_buchnummer(buchnummer:str, db: Session = Depends(get_db)):
     repo = WalletRepository(db)
     return repo.find_wallet_by_buchnummer(buchnummer)
 
-@wallet_router.get("/wallet_task", response_model = list[WalletRead])
-def get_wallet_task(task_id:int, db: Session = Depends(get_db)):
+@wallet_router.get("/wallet_task", response_model=list[WalletRead])
+def get_wallet_task(task_id: int, schritt: str, db: Session = Depends(get_db)):
     repo = WalletRepository(db)
-    return repo.find_wallet_by_task(task_id)
+    return repo.find_wallet_by_task(task_id=task_id, schritt=schritt)
 
 @wallet_router.get("/last", response_model = WalletRead)
 def get_wallet_last_task(buchnummer:str, db: Session = Depends(get_db)):
@@ -253,6 +257,12 @@ def get_bestellung_task(task_id: int, db: Session = Depends(get_db)):
     repo = BestellungRepository(db)
     return repo.find_bestellung_by_task(task_id)
 
+@bestellung_router.post("/save", response_model=BestellungRead)  # Pfad
+def create_new_bestellung(bestellung_create: BestellungCreate, db: Session = Depends(get_db)):
+    repo = BestellungRepository(db)
+    new_bestellung = Bestellung(**bestellung_create.model_dump())
+    return repo.create_bestellung(new_bestellung)
+
 '''
 @task_router.get("/{task_id}/shopping_list_beleg")
 def get_shopping_list_beleg(task_id: int, db: Session = Depends(get_db)):
@@ -295,8 +305,4 @@ def get_shopping_list_beleg(task_id: int, db: Session = Depends(get_db)):
     }
 '''
 
-@bestellung_router.post("/save", response_model=BestellungRead)  # Pfad
-def create_new_bestellung(bestellung_create: BestellungCreate, db: Session = Depends(get_db)):
-    repo = BestellungRepository(db)
-    new_bestellung = Bestellung(**bestellung_create.model_dump())
-    return repo.create_bestellung(new_bestellung)
+

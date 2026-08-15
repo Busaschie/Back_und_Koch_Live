@@ -4,7 +4,7 @@ from typing import Generator
 
 
 #DATABASE_URL =  "mysql+pymysql://root:@localhost:3306/backkoch"
-DATABASE_URL =  "sqlite:///b_und_k.db"
+DATABASE_URL =  "sqlite:///b_und_k_new_er.db"
 
 engine = create_engine(DATABASE_URL, echo=True)
 

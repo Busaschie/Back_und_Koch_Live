@@ -1,4 +1,6 @@
 @echo off
+cd /d "%~dp0"
+
 echo Erstelle frische virtuelle Umgebung...
 python -m venv .venv
 

@@ -11,18 +11,21 @@ class WalletBase(BaseModel):
     date:date
     grund:str | None = None
     old_amount:float
-    new_amount:float
     betrag:float
-    #user_id:UserRead.id
-    #task_id:TaskRead.id
+    new_amount:float
     buchnummer:str
-    task_id:int
 
 class WalletRead(WalletBase):
     id:int
+    task_id:int
+    schritt:str | None = None
 
 class WalletCreate(WalletBase):
-    pass
+    task_id: int
+    schritt: str | None = None
+
+class WalletBaseUser(WalletBase):
+    id:int
 
 #-----------------------------------------------
 # Task
@@ -35,9 +38,10 @@ class TaskBase(BaseModel):
     date:date
     monat:str | None = None
     jahr:int | None = None
-    shop_date:date
-    abgabe_date:date
     geld_date:date
+    abgabe_date:date
+    shop_date:date
+
 
 class TaskRead(TaskBase):
     id:int
@@ -112,9 +116,11 @@ class WarenRead(BaseModel):
 #-----------------------------------------------
 class BestellungBase(BaseModel):
     bezeichnung:str | None = None
-    menge:int
+    bestellmenge:int
     preis:float
     gesamt_preis:float
+    art: Optional[str]
+    menge: int
     task_id:int
 
 class BestellungRead(BestellungBase):

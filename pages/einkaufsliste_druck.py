@@ -3,12 +3,11 @@ import pandas as pd
 import requests
 import streamlit as st
 
-
 BASE_URL = "http://localhost:8000"
 
 # --- Page Setup for Printing ---
 st.set_page_config(
-    page_title="Druckansicht - Wareneinkauf Beleg",
+    page_title="Wareneinkaufszettel",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -24,7 +23,6 @@ st.markdown(
         margin: 0mm;
     }
 
-    /* Ausblenden aller UI-Elemente und der Sidebar */
     header, 
     footer, 
     .stButton, 
@@ -121,50 +119,22 @@ st.markdown(
 .col-stueck { width: 6%; text-align: center; }
 .col-leer1 { width: 6%; text-align: center; }
 .col-leer2 { width: 6%; text-align: center; }
-.col-bezeichnung { width: 44%; font-weight: 600; }
+.col-bezeichnung { width: 34%; font-weight: 600; }
 .col-einheit { width: 10%; text-align: center; }
 .col-ep { width: 11%; text-align: right; }
 .col-gp { width: 11%; text-align: right; }
-.col-korrektur { width: 6%; text-align: center; }
-
-.total-row td {
-    font-weight: bold;
-    background-color: #fafafa !important;
-    font-size: 13px;
-    -webkit-print-color-adjust: exact;
-}
+.col-korrektur { width: 16%; text-align: center; }
 
 .footer-section {
     margin-top: 30px;
     width: 100%;
-}
-
-.notes-box {
-    border: 1px solid #000000;
-    height: 60px;
-    margin-top: 5px;
-    padding: 5px;
-    font-size: 11px;
-    color: #555555;
-}
-
-.signature-table {
-    width: 100%;
-    margin-top: 40px;
-}
-
-.sig-line {
-    border-top: 1px solid #000000;
-    text-align: center;
-    font-size: 11px;
-    padding-top: 5px;
 }
 </style>
 """,
     unsafe_allow_html=True,
 )
 
-# Task-ID prüfen
+# Task-ID aus Session State laden
 task_id = st.session_state.get("print_task_id")
 
 if task_id:
@@ -178,7 +148,7 @@ else:
         st.switch_page("main.py")
     st.stop()
 
-# --- Oberer Bildschirm-Bereich (In .no-print gewrappt) ---
+# Oberer Hinweisbereich
 st.markdown(
     f"""
     <div class="no-print" style="background-color: #e8f4f8; padding: 12px; border-radius: 6px; margin-bottom: 15px;">
@@ -189,71 +159,83 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
-def load_data():
+# --- Gecachte Ladefunktion für schnelle Ladezeiten ---
+@st.cache_data(ttl=60)
+def load_data(current_task_id: int):
     try:
-        # Aufruf des funktionierenden Router-Endpunkts mit task_id als Query-Parameter
         res = requests.get(
-            f"{BASE_URL}/bestellung/{task_id}/bestellung_task",
-            params={"task_id": task_id},
+            f"{BASE_URL}/bestellung/{current_task_id}/bestellung_task",
             timeout=5,
         )
 
         if res.status_code == 200:
             items = res.json()
             if not items:
-                return (
-                    None,
-                    f"Für den Vorgang #{task_id} wurde noch keine Einkaufsliste"
-                    " gefunden.",
-                )
+                return None, f"Für den Vorgang #{current_task_id} wurde noch keine Einkaufsliste gefunden."
 
-            # Aufbereitung in das vom Druck-Template erwartete Datenformat
             data = {
-                "task": {
-                    "id": task_id,
-                    "created_at": None,
-                },
+                "task": {"id": current_task_id, "created_at": None},
                 "items": items,
             }
             return data, None
 
         elif res.status_code == 404:
-            return (
-                None,
-                f"Für den Vorgang #{task_id} wurde noch keine Einkaufsliste"
-                " gefunden.",
-            )
+            return None, f"Für den Vorgang #{current_task_id} wurde noch keine Einkaufsliste gefunden."
 
-        return (
-            None,
-            f"Fehler beim Laden der Einkaufsliste (Status: {res.status_code})",
-        )
+        return None, f"Fehler beim Laden der Einkaufsliste (Status: {res.status_code})"
     except Exception as e:
         return None, f"Verbindung zur API fehlgeschlagen: {e}"
 
 
-data, error = load_data()
+data, error = load_data(task_id)
 
 if error:
     st.error(error)
 elif not data:
     st.warning("Keine Daten für diese Einkaufsliste vorhanden.")
 else:
-    task_info = data.get("task", {})
     items = data.get("items", [])
-
-    created_ti = datetime.now()
-    created_at_fmt = created_ti.strftime("%d.%m.%Y / %H:%M")
-
+    created_at_fmt = datetime.now().strftime("%d.%m.%Y / %H:%M")
     df_items = pd.DataFrame(items)
+
+    if df_items.empty:
+        table_rows_html = """
+            <tr>
+                <td colspan="8" style="text-align: center; color: #666; font-style: italic;">Keine Artikel in dieser Einkaufsliste.</td>
+            </tr>
+        """
+    else:
+        df_filtered = df_items[df_items["bestellmenge"] > 0]
+
+        rows = []
+        for _, row in df_filtered.iterrows():
+            bezeichnung = row.get("bezeichnung", "")
+            bestellmenge = int(row.get("bestellmenge", 0))
+            preis = float(row.get("preis", 0.0))
+            gesamt = float(row.get("gesamt_preis", 0.0))
+            art = row.get("art", "")
+            menge = row.get("menge", "")
+
+            rows.append(f"""
+            <tr>
+                <td class="col-stueck">{bestellmenge}</td>
+                <td class="col-leer1">   </td>
+                <td class="col-leer2">   </td>
+                <td class="col-bezeichnung">{bezeichnung}</td>
+                <td class="col-einheit">{menge} {art}</td>
+                <td class="col-ep">{preis:,.2f} €</td>
+                <td class="col-gp">{gesamt:,.2f} €</td>
+                <td class="col-korrektur">   </td>
+            </tr>
+            """)
+
+        table_rows_html = "".join(rows)
 
     html_content = f"""
     <div class="print-container">
         <table class="header-table">
             <tr>
                 <td>
-                    <div class="header-title">Wareneinkauf Beleg</div>
                     <div class="header-sub">Vorgang #{task_id} | Erstellt am: {created_at_fmt}</div>
                 </td>
                 <td style="text-align: right; vertical-align: bottom;">
@@ -276,71 +258,11 @@ else:
                 </tr>
             </thead>
             <tbody>
-    """
-
-    if df_items.empty:
-        html_content += """
-            <tr>
-                <td colspan="8" style="text-align: center; color: #666; font-style: italic;">Keine Artikel in dieser Einkaufsliste.</td>
-            </tr>
-        """
-    else:
-        df_filtered = df_items[df_items["menge"] > 0]
-        gesamtsumme = df_filtered["gesamt_preis"].sum()
-        gesamt_artikel = df_filtered["menge"].sum()
-
-        for _, row in df_filtered.iterrows():
-            bezeichnung = row.get("bezeichnung", "")
-            menge = int(row.get("menge", 0))
-            preis = float(row.get("preis", 0.0))
-            gesamt = float(row.get("gesamt_preis", 0.0))
-            einheit = row.get("einheit", "Stk.")
-
-            html_content += f"""
-            <tr>
-                <td class="col-stueck">{menge}</td>
-                <td class="col-leer1">   </td>
-                <td class="col-leer2">   </td>
-                <td class="col-bezeichnung">{bezeichnung}</td>
-                <td class="col-einheit">{einheit}</td>
-                <td class="col-ep">{preis:,.2f} €</td>
-                <td class="col-gp">{gesamt:,.2f} €</td>
-                <td class="col-korrektur">   </td>
-            </tr>
-            """
-
-        html_content += f"""
-            <tr class="total-row">
-                <td class="col-stueck">{gesamt_artikel}</td>
-                <td class="col-leer1">   </td>
-                <td class="col-leer2">   </td>
-                <td class="col-bezeichnung">Bestellung Gesamt</td>
-                <td class="col-einheit"></td>
-                <td class="col-ep"></td>
-                <td class="col-gp">{gesamtsumme:,.2f} €</td>
-                <td class="col-korrektur">   </td>
-            </tr>
-        """
-
-    html_content += """
+                {table_rows_html}
             </tbody>
         </table>
 
         <div class="footer-section">
-            <div style="font-size: 11px; font-weight: bold; margin-bottom: 3px;">Anmerkungen / Korrekturen:</div>
-            <div class="notes-box"></div>
-
-            <table class="signature-table">
-                <tr>
-                    <td style="width: 45%;">
-                        <div class="sig-line">Unterschrift Käufer / Einkäufer</div>
-                    </td>
-                    <td style="width: 10%;"></td>
-                    <td style="width: 45%;">
-                        <div class="sig-line">Unterschrift Prüfung / Kasse</div>
-                    </td>
-                </tr>
-            </table>
         </div>
     </div>
     """

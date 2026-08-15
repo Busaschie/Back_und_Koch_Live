@@ -42,6 +42,7 @@ if "waren_create_mode" not in st.session_state:
 
 
 # --- API-Ladefunktionen ---
+# 1. API-Ladefunktion
 def load_waren():
     """Lädt alle Waren aus der Datenbank."""
     try:
@@ -56,11 +57,14 @@ def load_waren():
     return st.session_state.waren_list
 
 
-# Waren initial oder bei Bedarf laden
+# 2. Daten laden, falls noch nicht im State
 if st.session_state.waren_list is None:
     load_waren()
 
-df_waren = st.session_state.waren_list
+# 3. Kopie holen & für die Anzeige formatieren (hier greift es garantiert)
+df_waren = st.session_state.waren_list.copy()
+if not df_waren.empty and "kategorie" in df_waren.columns:
+    df_waren["kategorie"] = df_waren["kategorie"].astype(str).str.capitalize()
 
 # ==========================================
 # MAIN LAYOUT
@@ -151,7 +155,7 @@ with col_rechts:
                 else:
                     payload = {
                         "bezeichnung": neu_bezeichnung.strip(),
-                        "kategorie": neu_kategorie.strip().lower(),
+                        "kategorie": neu_kategorie.strip().lower(),  # Kategorie in Kleinbuchstaben
                         "menge": int(neu_menge),
                         "art": neu_art.strip(),
                         "preis": float(neu_preis)
@@ -205,10 +209,10 @@ with col_rechts:
             # --- Logik: Speichern ---
             if save_submitted:
                 payload = {
-                    "bezeichnung": bezeichnung,
-                    "kategorie": kategorie,
+                    "bezeichnung": bezeichnung.strip(),
+                    "kategorie": kategorie.strip().lower(),  # Kategorie beim Update ebenfalls in Kleinbuchstaben
                     "menge": int(menge),
-                    "art": art,
+                    "art": art.strip(),
                     "preis": float(preis)
                 }
                 try:

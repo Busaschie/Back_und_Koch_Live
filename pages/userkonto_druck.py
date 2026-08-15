@@ -30,9 +30,10 @@ st.markdown(
     @media print {
         @page {
             size: A4 portrait;
-            margin: 0mm;
+            margin: 0mm; /* Entfernt Browser-Ränder */
         }
 
+        /* Ausblenden aller Nicht-Druck-Elemente */
         header, 
         footer, 
         .stButton, 
@@ -40,30 +41,30 @@ st.markdown(
         section[data-testid="stSidebar"],
         nav[data-testid="stSidebarNav"],
         div[data-testid="stHeader"], 
+        header[data-testid="stHeader"],
         .no-print, 
         .stAlert {
             display: none !important;
             visibility: hidden !important;
-            width: 0 !important;
             height: 0 !important;
+            width: 0 !important;
         }
 
-        .main, .main .block-container {
-            padding: 0px !important;
-            margin: 0px !important;
-            width: 100% !important;
-            max-width: 100% !important;
-        }
-
-        body {
+        /* Streamlit-Abstände oben/außen komplett leeren */
+        html, body, .stApp, .stAppViewContainer, .stMain, .main, 
+        .block-container, div[data-testid="stVerticalBlock"] {
+            padding: 0 !important;
+            margin: 0 !important;
+            top: 0 !important;
             background-color: #ffffff !important;
         }
 
+        /* A4 Container-Dimensionen für den Ausdruck */
         .a4-page {
             box-shadow: none !important;
             border: none !important;
-            margin: 0 auto !important;
-            padding: 1cm 1.5cm !important;
+            margin: 0 !important;
+            padding: 0.8cm 1.2cm !important;
             width: 100% !important;
             max-width: 21cm !important;
         }
@@ -104,14 +105,14 @@ st.markdown(
     .summary-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 12px;
+        font-size: 11px;
         margin-top: 10px;
-        margin-bottom: 20px;
+        margin-bottom: 15px;
     }
 
     .summary-table th, .summary-table td {
         border: 1px solid #000000 !important;
-        padding: 6px 8px;
+        padding: 4px 6px;
     }
 
     .summary-table th {
@@ -119,26 +120,28 @@ st.markdown(
         font-weight: bold;
         text-align: left;
         -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 
     .summary-box {
         border: 1.5px solid #000000;
-        padding: 12px;
-        margin-top: 20px;
+        padding: 10px;
+        margin-top: 15px;
         background-color: #fafafa !important;
-        font-size: 12px;
+        font-size: 11px;
         -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 
     .summary-line {
         display: flex;
         justify-content: space-between;
-        margin-bottom: 6px;
+        margin-bottom: 5px;
     }
 
     .summary-line:last-child {
         margin-bottom: 0;
-        padding-top: 6px;
+        padding-top: 5px;
         border-top: 1px solid #000000;
         font-weight: bold;
     }
@@ -168,6 +171,9 @@ def load_print_data():
                 "name": f"{u.get('vorname', '')} {u.get('nachname', '')}".strip(),
                 "balance": balance,
             })
+
+        # --- Sortierung absteigend nach Name (Z-A) ---
+        print_dataset.sort(key=lambda x: x["name"], reverse=True)
 
         # 2. Auszahlungswert für den Einkauf ermitteln (falls task_id existiert)
         einkauf_aktuell = 0.0
@@ -222,7 +228,8 @@ else:
     html_gesamt = f"""
 <div class="a4-page">
 <div class="title-header">
-<div class="title-main">Gesamtübersicht Kontostände</div>
+<div class="title-main">Back- & Kocheinkauf</div>
+<div class="title-sub" style="font-size: 15px"><strong>Gesamtübersicht Kontostände</strong></div>
 <div class="title-sub">{vorgang_text} | Stichtag: {druck_zeitpunkt}</div>
 </div>
 

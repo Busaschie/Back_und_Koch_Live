@@ -218,8 +218,8 @@ class WalletRepository():
     def find_wallet_by_buchnummer(self,buchnummer:str)->list[Wallet]:
         return self.session.query(Wallet).filter(Wallet.buchnummer==buchnummer).all()
 
-    def find_wallet_by_task(self,task_id:int)->list[Wallet]:
-        return self.session.query(Wallet).filter(Wallet.task_id==task_id).all()
+    def find_wallet_by_task(self, task_id: int, schritt: str) -> list[Wallet]:
+        return (self.session.query(Wallet).filter(Wallet.task_id==task_id, Wallet.schritt==schritt).all())
 
     def find_wallet_last_task_user(self,buchnummer:str)->Wallet:
         return self.session.query(Wallet).filter(Wallet.buchnummer==buchnummer).order_by(Wallet.id.desc()).first()

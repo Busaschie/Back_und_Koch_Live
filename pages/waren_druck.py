@@ -13,14 +13,6 @@ if task_id:
     task_id = int(task_id)
 else:
     task_id = 1
-#else:
-#    st.error(
-#        "Keine aktive Vorgangs-ID gefunden! Bitte wähle zuerst auf der"
-#        " Hauptseite einen Vorgang aus."
-#    )
-#    if st.button("🔙 Zurück zur Hauptseite"):
-#        st.switch_page("main.py")
-#    st.stop()
 
 
 # --- CSS für zweispaltiges A4-Drucklayout & Ausblenden der Navigation ---
@@ -31,9 +23,10 @@ st.markdown(
     @media print {
         @page {
             size: A4 portrait;
-            margin: 0mm;
+            margin: 0mm; /* Entfernt die Browser-Ränder */
         }
 
+        /* Ausblenden aller Nicht-Druck-Elemente */
         header, 
         footer, 
         .stButton, 
@@ -41,30 +34,30 @@ st.markdown(
         section[data-testid="stSidebar"],
         nav[data-testid="stSidebarNav"],
         div[data-testid="stHeader"], 
+        header[data-testid="stHeader"],
         .no-print, 
         .stAlert {
             display: none !important;
             visibility: hidden !important;
-            width: 0 !important;
             height: 0 !important;
+            width: 0 !important;
         }
 
-        .main, .main .block-container {
-            padding: 0px !important;
-            margin: 0px !important;
-            width: 100% !important;
-            max-width: 100% !important;
-        }
-
-        body {
+        /* Streamlit-Abstände (Padding/Margin) komplett zurücksetzen */
+        html, body, .stApp, .stAppViewContainer, .stMain, .main, 
+        .block-container, div[data-testid="stVerticalBlock"] {
+            padding: 0 !important;
+            margin: 0 !important;
+            top: 0 !important;
             background-color: #ffffff !important;
         }
 
+        /* Container genau an A4 anpassen */
         .a4-page {
             box-shadow: none !important;
             border: none !important;
-            margin: 0 auto !important;
-            padding: 1cm 1.5cm !important;
+            margin: 0 !important;
+            padding: 0.8cm 1.2cm !important;
             width: 100% !important;
             max-width: 21cm !important;
         }
@@ -87,7 +80,7 @@ st.markdown(
     .header-box {
         border-bottom: 2px solid #000;
         padding-bottom: 5px;
-        margin-bottom: 15px;
+        margin-bottom: 10px;
     }
 
     .title {
@@ -97,35 +90,36 @@ st.markdown(
     }
 
     .category-title {
-        font-size: 13px;
+        font-size: 11px;
         font-weight: bold;
         background-color: #e6e6e6 !important;
-        padding: 4px 8px;
+        padding: 2px 8px;
         border: 1px solid #000;
-        margin-top: 15px;
-        margin-bottom: 6px;
         text-transform: uppercase;
+        margin-top: 8px;
+        margin-bottom: 4px;
         -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 
     .two-column-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 15px;
+        gap: 10px;
     }
 
     .item-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 11px;
+        font-size: 10px;
     }
 
     .item-table td {
         border: 1px solid #000 !important;
-        padding: 3px 5px;
+        padding: 2px 5px;
     }
 
-    .item-name { width: 60%; font-weight: bold; }
+    .item-name { width: 60% }
     .item-qty { width: 20%; text-align: center; }
     .item-price { width: 20%; text-align: right; }
     </style>
@@ -170,8 +164,7 @@ else:
     html_content = f"""
 <div class="a4-page">
 <div class="header-box">
-<div class="title">Verfügbare Artikel / Sortiment</div>
-<div style="font-size: 10px; color: #444;">Stand: {druck_zeitpunkt} | Vorgang #{task_id}</div>
+<div style="font-size: 8px; color: #444;">Preise sind lediglich Richtwerte! Abweichungen zum tatsächlichen Preis bleiben vorbehalten.<br>Die Abrechnung erfolgt nach Kassenzettel und kann auf Anfrage eingesehen werden.<br>Stand: {druck_zeitpunkt} | Vorgang #{task_id}</div>
 </div>
 """
 
@@ -183,7 +176,10 @@ else:
             left_items = kat_items[:half]
             right_items = kat_items[half:]
 
-            html_content += f'<div class="category-title">{kat}</div>'
+            # Kategorie als Titel formatiert (Anfangsbuchstabe groß)
+            kat_title = str(kat).title()
+
+            html_content += f'<div class="category-title">{kat_title}</div>'
             html_content += '<div class="two-column-grid">'
 
             # Links
